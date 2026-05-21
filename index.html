@@ -748,7 +748,7 @@ function launch(){
   if(harpoon.status!=='still') return;
   harpoon.status='out';
   harpoon.tipX=harpoon.x;
-  harpoon.tipY=160;
+  harpoon.tipY = harpoon.y + 20;
 }
 function updateHarpoon(dt){
   if (!harpoon) return;
