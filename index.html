@@ -693,10 +693,14 @@ draw(){
 
 
   if(f.id >= 4){
-    text(f.name, 0, -this.h*0.75, 16, 'center', '#fff');
-  }
+    ctx.save();
 
-  ctx.restore();
+    if (this.dir === -1) {
+      ctx.scale(-1,1)
+    }
+    text(f.name, 0, -this.h*0.75, 16, 'center', '#fff');
+    ctx.restore();
+  }
 }
 rect(){
   return {
@@ -762,7 +766,7 @@ function updateHarpoon(dt){
     harpoon.tipX = harpoon.x; harpoon.tipY = sy;
     return;
   }
-  const step=harpoonSpeed()*dt* 0.18;
+  const step=harpoonSpeed()*dt* 0.06;
   if(harpoon.status==='out') harpoon.tipY += step;
   else harpoon.tipY -= step*1.15;
 
@@ -834,7 +838,7 @@ function updateEffects(dt){
   game.messages=game.messages.filter(m=>m.life>0);
 }
 
-function spawnFish(){ game.fish=[]; const count=18+currentMap().fishBonus; for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
+function spawnFish(){ game.fish=[]; const count= Math.min(18, 4+currentMap().fishBonus); for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
 function spawnChests(){ game.chests=[]; const count=currentMap().id==='bay'?1:2; for(let i=0;i<count;i++) game.chests.push(new TreasureChest()); }
 
 function drawBackground(dt){
