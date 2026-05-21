@@ -695,7 +695,15 @@ draw(){
   }
 
   ctx.restore();
-  }
+}
+rect(){
+  return {
+    x: this.x,
+    y: this.y,
+    w: this.w,
+    h: this.h
+  };
+}
 }
 
 
