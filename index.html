@@ -863,11 +863,25 @@ function drawHarpoon(){ const sy=160; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.line
 
 
 function changeMap(id){
-  if(game.map===id || game.transition.active) return;
-  game.panel=null;
-  game.transition={active:true, phase:'sailOut', t:0, nextMap:id, boatX:0};
-  harpoon.status='still'; harpoon.fish=null; harpoon.chest=null;
+  if(game.transition?.active) return;
+
+  if(game.map === id) return;
+
+  game.panel = null;
+
+  game.transition = {
+    active: true,
+    phase: 'sailOut',
+    t: 0,
+    nextMap: id,
+    boatX: 0
+  };
+
+  harpoon.status = 'still';
+  harpoon.fish = null;
+  harpoon.chest = null;
 }
+
 function updateTransition(dt){
   if(!game.transition.active) return;
 
@@ -1027,14 +1041,13 @@ function drawMapsPanel(){
       x + 355, y + 10, 135, 36, label,
       ()=>{
         if(unlocked){
-          game.map = m.id;
-          spawnFish();
+          changeMap(m.id);
           save();
         } else {
           buy(m.cost, ()=>{
             game.unlockedMaps[m.id] = true;
-            game.map = m.id;
-            spawnFish();
+            changeMap(m.id);
+            save();
           });
         }
       },
