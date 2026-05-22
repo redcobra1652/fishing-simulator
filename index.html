@@ -859,6 +859,24 @@ function drawWater(y,color,amp,spd){ ctx.fillStyle=color; ctx.beginPath(); ctx.m
 function drawBoat(){ ctx.save(); const tx = game.transition.active ? W/2 + game.transition.boatX : W/2; ctx.translate(tx,105); ctx.shadowColor='rgba(0,0,0,.28)'; ctx.shadowBlur=12; ctx.shadowOffsetY=8; ctx.fillStyle='#8b4513'; ctx.beginPath(); ctx.moveTo(-170,35); ctx.lineTo(170,35); ctx.lineTo(115,105); ctx.lineTo(-115,105); ctx.closePath(); ctx.fill(); ctx.fillStyle='#5c2f0e'; ctx.fillRect(-110,55,220,18); roundRect(-62,-25,124,65,12,'#f7f1e3','#8b4513',5); roundRect(-42,-10,35,28,6,'#54a0ff','#2e86de',3); roundRect(10,-10,35,28,6,'#54a0ff','#2e86de',3); ctx.fillStyle='#3d2b1f'; ctx.fillRect(-6,-85,12,70); ctx.fillStyle='#ffdd59'; ctx.beginPath(); ctx.moveTo(8,-82); ctx.lineTo(76,-48); ctx.lineTo(8,-18); ctx.closePath(); ctx.fill(); ctx.restore(); }
 function drawHarpoon(){ const sy=160; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(harpoon.x,sy); ctx.lineTo(harpoon.tipX,harpoon.tipY); ctx.stroke(); ctx.save(); ctx.translate(harpoon.tipX,harpoon.tipY); ctx.fillStyle='#2f3542'; roundRect(-5,0,10,60,4,'#2f3542','#111',1); ctx.fillStyle='#ced6e0'; ctx.beginPath(); ctx.moveTo(-13,58); ctx.lineTo(0,88); ctx.lineTo(13,58); ctx.closePath(); ctx.fill(); ctx.restore();
   if(harpoon.status==='still'){ ctx.globalAlpha=.55; ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=3; ctx.setLineDash([8,8]); ctx.beginPath(); ctx.moveTo(harpoon.x,235); ctx.lineTo(harpoon.x,H-40); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; }
+  if(!game.transition?.active){
+    const boatX = W / 2;
+    const boatY = 160; // lower = more center of boat body
+
+    ctx.save();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; // solid black
+    ctx.lineWidth = 4; // slightly thick
+    ctx.lineCap = 'round';
+    ctx.setLineDash([]); // ensure NOT dotted
+
+    ctx.beginPath();
+    ctx.moveTo(harpoon.x, 160); // harpoon anchor (same as before)
+    ctx.lineTo(boatX, boatY);
+
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 
