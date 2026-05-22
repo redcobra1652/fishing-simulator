@@ -215,7 +215,7 @@ const game = {
   upgrades:{speed:0, rope:0, luck:0, magnet:0},
   quests:[
     { text:'Catch 10 fish', goal:10, type:'caught', reward:250, done:false },
-    { text:'Reach max combo level', goal:3, type:'combo', reward:500, done:false },
+    { text:'Reach max combo level', goal:2, type:'combo', reward:500, done:false },
     { text:'Catch a rainbow fish', goal:1, type:'legend', reward:1000, done:false },
     { text:'Catch 100 fish', goal:100, type:'catches', reward:5000, done:false },
     { text:'Catch 1000 fish', goal:1000, type:'lotofcatches', reward:50000, done:false }
@@ -1015,30 +1015,72 @@ function drawShopPanel(){
   });
 }
 function drawMapsPanel(){
-  maps.forEach((m,i)=>{
-    const col = i % 2;
-    const row = Math.floor(i / 2);
 
-    const x = 225 + col * 550;
-    const y = 190 + row * 68;
+  const cardH = 100;
+  const gap = 14;
+
+  const panelX = 200;
+  const panelY = 170;
+  const panelW = 1160;
+  const panelH = 590;
+
+  const startX = 240;
+  const startY = 190;
+
+  // total content height
+  const contentH = maps.length * (cardH + gap) - gap;
+
+  const maxScroll = Math.max(0, contentH - panelH + 120);
+
+  game.mapScroll = clamp(game.mapScroll || 0, 0, maxScroll);
+
+  ctx.save();
+
+  // STRICT CLIP (prevents any overflow above/below panel)
+  ctx.beginPath();
+  ctx.rect(panelX, panelY, panelW, panelH);
+  ctx.clip();
+
+  maps.forEach((m, i)=>{
+
+    const y = startY + i * (cardH + gap) - game.mapScroll;
+
+    // hard cull (prevents floating “Galaxy Ocean ghost” at bottom)
+    if(y + cardH < panelY || y > panelY + panelH) return;
 
     const unlocked = game.unlockedMaps[m.id];
     const active = game.map === m.id;
 
     roundRect(
-      x, y, 510, 56, 14,
-      active ? 'rgba(46,213,115,.25)' : 'rgba(255,255,255,.10)',
-      'rgba(255,255,255,.2)',
+      startX,
+      y,
+      1040,
+      cardH,
+      18,
+      active ? 'rgba(46,213,115,.20)' : 'rgba(255,255,255,.08)',
+      'rgba(255,255,255,.18)',
       2
     );
 
-    text(m.name, x + 18, y + 18, 20);
-    text(`${m.mult}x coins • ${m.desc}`, x + 18, y + 42, 14, 'left', '#dfe6e9');
+    text(m.name, startX + 20, y + 38, 26);
+
+    text(
+      `${m.mult}x coins • ${m.desc}`,
+      startX + 20,
+      y + 70,
+      16,
+      'left',
+      '#dfe6e9'
+    );
 
     const label = active ? 'Equipped' : unlocked ? 'Equip' : `Buy ${m.cost}`;
 
     addButton(
-      x + 355, y + 10, 135, 36, label,
+      startX + 880,
+      y + 30,
+      140,
+      40,
+      label,
       ()=>{
         if(unlocked){
           changeMap(m.id);
@@ -1053,11 +1095,74 @@ function drawMapsPanel(){
       },
       active ? '#636e72' : '#00cec9'
     ).draw(active ? '#636e72' : '#00cec9');
+
   });
+
+  ctx.restore();
+
+  // =========================
+  // SCROLLBAR (visual feedback)
+  // =========================
+
+  if(maxScroll > 0){
+
+    const barX = panelX + panelW - 14;
+    const barY = panelY + 20;
+    const barH = panelH - 40;
+
+    const thumbH = Math.max(40, barH * (panelH / contentH));
+    const scrollRatio = game.mapScroll / maxScroll;
+
+    const thumbY = barY + (barH - thumbH) * scrollRatio;
+
+    // track
+    roundRect(barX, barY, 6, barH, 3, 'rgba(255,255,255,.08)');
+
+    // thumb
+    roundRect(barX, thumbY, 6, thumbH, 3, '#00cec9');
+  }
 }
 function drawRodsPanel(){ rods.forEach((r,i)=>{ const y=220+i*105, unlocked=game.unlockedRods[r.id], active=game.rod===r.id; roundRect(270,y,970,82,18,active?'rgba(253,203,110,.28)':'rgba(255,255,255,.10)','rgba(255,255,255,.2)',2); text(r.name,300,y+28,28); text(`${r.desc} • Power ${r.power}x`,300,y+58,18,'left','#dfe6e9'); const label=active?'Equipped':unlocked?'Equip':`Buy ${r.cost}`; addButton(1020,y+16,180,50,label,()=>{ if(unlocked){ game.rod=r.id; save(); } else buy(r.cost,()=>{game.unlockedRods[r.id]=true; game.rod=r.id;}); },active?'#636e72':'#fdcb6e').draw(active?'#636e72':'#fdcb6e'); }); }
 function drawBaitPanel(){ text('Bait boosts rare fish for the next 30 seconds.',W/2,230,26,'center','#dfe6e9'); roundRect(380,295,750,170,24,'rgba(255,255,255,.10)','rgba(255,255,255,.25)',2); text('Lucky Bait',W/2,340,34,'center'); text('Cost: 350 coins • +rare fish chance',W/2,390,22,'center','#dfe6e9'); addButton(620,420,270,58,game.baitActive?'Active':'Buy + Use',()=>{ if(!game.baitActive) buy(350,()=>{ game.baitActive=true; setTimeout(()=>game.baitActive=false,30000); }); },game.baitActive?'#636e72':'#a29bfe').draw(game.baitActive?'#636e72':'#a29bfe'); }
-function drawQuestsPanel(){ game.quests.forEach((q,i)=>{ const y=230+i*120; roundRect(300,y,900,82,18,q.done?'rgba(46,213,115,.25)':'rgba(255,255,255,.10)','rgba(255,255,255,.22)',2); text(q.text,330,y+28,28); text(q.done?`Completed • Reward claimed`:`Reward: ${q.reward} coins`,330,y+58,20,'left','#dfe6e9'); text(q.done?'DONE':'ACTIVE',1110,y+42,24,'center',q.done?'#7bed9f':'#fff16a'); }); }
+function drawQuestsPanel(){
+  const boxH = 82;
+  const gap = 14;
+  const startY = 230;
+
+  game.quests.forEach((q,i)=>{
+    const y = startY + i * (boxH + gap);
+
+    roundRect(
+      300,
+      y,
+      900,
+      boxH,
+      18,
+      q.done ? 'rgba(46,213,115,.25)' : 'rgba(255,255,255,.10)',
+      'rgba(255,255,255,.22)',
+      2
+    );
+
+    text(q.text, 330, y + 28, 28);
+    text(
+      q.done ? `Completed • Reward claimed` : `Reward: ${q.reward} coins`,
+      330,
+      y + 58,
+      20,
+      'left',
+      '#dfe6e9'
+    );
+
+    text(
+      q.done ? 'DONE' : 'ACTIVE',
+      1110,
+      y + 42,
+      24,
+      'center',
+      q.done ? '#7bed9f' : '#fff16a'
+    );
+  });
+}
 
 function drawEffects(){ for(const p of game.particles){ ctx.globalAlpha=clamp(p.life/40,0,1); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; } for(const m of game.messages){ ctx.globalAlpha=clamp(m.life/45,0,1); text(m.text,m.x,m.y,24,'center',m.color); ctx.globalAlpha=1; } }
 function update(dt){ for(const f of game.fish) f.move(dt); for(const c of game.chests) c.move(dt); updateHarpoon(dt); updateEffects(dt); updateTransition(dt); }
@@ -1091,6 +1196,10 @@ function loop(t){ const dt=Math.min(33,t-game.last||16); game.last=t; update(dt)
 function mousePos(e){ const r=canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}; }
 canvas.addEventListener('mousemove',e=>{ const p=mousePos(e); game.mouseX=p.x; game.mouseY=p.y; if(harpoon.status==='still') harpoon.x=clamp(game.mouseX,210,W-210); });
 canvas.addEventListener('click',e=>{ const p=mousePos(e); for(let i=buttons.length-1;i>=0;i--){ if(buttons[i].hit(p.x,p.y)){ buttons[i].fn(); return; } } launch(); });
+canvas.addEventListener('wheel', e=>{
+  if(game.panel !== 'maps') return;
+  game.mapScroll += e.deltaY * 0.6;
+});
 window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape') game.panel=null; if(e.key.toLowerCase()==='r') reset(); });
 
 load(); spawnFish(); requestAnimationFrame(loop);
