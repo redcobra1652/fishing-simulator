@@ -802,7 +802,7 @@ function updateHarpoon(dt){
   }
 }
 function catchFish(fish){
-  const map=currentMap(); const variantMult=fish.variant?fish.variant.mult:1; const potionMult=game.potions.coin>0?2:1; const base=fish.type.value*map.mult*variantMult*potionMult; game.combo = Math.min(10, game.combo+.25); game.comboTimer=2600;
+  const map=currentMap(); const variantMult=fish.variant?fish.variant.mult:1; const potionMult=game.potions.coin>0?2:1; const base=fish.type.value*map.mult*variantMult*potionMult; game.combo = Math.min(2, game.combo+.125); game.comboTimer=2600;
   const earned=Math.round(base*game.combo); game.coins += earned; game.score += earned; game.caught++; game.bestCatch=`${fish.variant?fish.variant.label+' ':''}${fish.type.name}`;
   if(fish.type.id>=5) game.gems += fish.type.id-4;
   msg(`+${earned} coins`, fish.x+fish.w/2, fish.y, '#fff16a');
