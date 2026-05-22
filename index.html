@@ -199,7 +199,7 @@ const fishTypesByMap = {
 };
 const jayFishType = {
   id: 1,
-  name: 'Jay Fish',
+  name: 'ChunkyBoy',
   value: 2,
   body: '#d6d6d6',
   fin: '#333333',
@@ -639,27 +639,27 @@ draw(){
 
   // Image-based fish, like Jay Fish
   if (f.image && fishImages[f.image]) {
-    const img = fishImages[f.image];
+  const img = fishImages[f.image];
 
-    ctx.save();
-    ctx.translate(this.x + this.w / 2, this.y + this.h / 2 + bob);
-    ctx.scale(this.dir, 1);
+  ctx.save();
+  ctx.translate(this.x + this.w / 2, this.y + this.h / 2 + bob);
 
-    ctx.shadowColor = f.glow ? 'rgba(255,255,255,.8)' : 'rgba(0,0,0,.35)';
-    ctx.shadowBlur = f.glow ? 18 : 10;
-    ctx.shadowOffsetY = 4;
+  ctx.shadowColor = 'rgba(0,0,0,.35)';
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 4;
 
-    ctx.drawImage(img, -this.w / 2, -this.h / 2, this.w, this.h);
+  // Draw image NOT flipped, so the face is normal
+  ctx.drawImage(img, -this.w / 2, -this.h / 2, this.w, this.h);
 
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
 
-    // Name tag
-    text(f.name, 0, -this.h * 0.7, 16, 'center', '#fff');
+  // Draw name normal, not reversed
+  text(f.name, 0, -this.h * 0.7, 16, 'center', '#fff');
 
-    ctx.restore();
-    return;
-  }
+  ctx.restore();
+  return;
+}
 
   ctx.save();
   ctx.translate(this.x + this.w/2, this.y + this.h/2 + bob);
