@@ -47,22 +47,22 @@ const W = 1510, H = 850;
 
 const maps = [
   { id:'bay', name:'Starter Bay', cost:0, mult:1, depth:'#1e90ff', sky1:'#86e1ff', sky2:'#2196f3', fishBonus:0, rare:0, desc:'Balanced beginner waters.' },
-  { id:'reef', name:'Coral Reef', cost:150, mult:1.1, depth:'#00a8a8', sky1:'#8ff8ff', sky2:'#03a9a9', fishBonus:4, rare:6, desc:'More fish, better coin rewards.' },
-  { id:'deep', name:'Deep Sea', cost:400, mult:1.2, depth:'#071a4a', sky1:'#23406d', sky2:'#081027', fishBonus:7, rare:13, desc:'Dark water with expensive catches.' },
-  { id:'lava', name:'Volcano Coast', cost:1000, mult:1.3, depth:'#b83220', sky1:'#ff9955', sky2:'#33100b', fishBonus:9, rare:22, desc:'Dangerous water, huge profit.' },
-  { id:'ice', name:'Frozen Abyss', cost:2200, mult:1.4, depth:'#7ee8ff', sky1:'#e8fbff', sky2:'#0d4064', fishBonus:12, rare:34, desc:'Endgame map with elite fish.' },
+  { id:'reef', name:'Coral Reef', cost:150, mult:1.1, depth:'#00a8a8', sky1:'#8ff8ff', sky2:'#03a9a9', fishBonus:1, rare:1, desc:'More fish, better coin rewards.' },
+  { id:'deep', name:'Deep Sea', cost:400, mult:1.2, depth:'#071a4a', sky1:'#23406d', sky2:'#081027', fishBonus:1, rare:2, desc:'Dark water with expensive catches.' },
+  { id:'lava', name:'Volcano Coast', cost:1000, mult:1.3, depth:'#b83220', sky1:'#ff9955', sky2:'#33100b', fishBonus:2, rare:3, desc:'Dangerous water, huge profit.' },
+  { id:'ice', name:'Frozen Abyss', cost:2200, mult:1.4, depth:'#7ee8ff', sky1:'#e8fbff', sky2:'#0d4064', fishBonus:2, rare:4, desc:'Endgame map with elite fish.' },
 
-  { id:'mangrove', name:'Mangrove Swamp', cost:4500, mult:1.5, depth:'#1f6b4a', sky1:'#9be7a1', sky2:'#154734', fishBonus:14, rare:42, desc:'Thick swamp waters with strange fish.' },
-  { id:'crystal', name:'Crystal Lagoon', cost:9000, mult:1.6, depth:'#5df2ff', sky1:'#d7ffff', sky2:'#26b6c9', fishBonus:16, rare:52, desc:'Bright crystal water with shiny catches.' },
-  { id:'storm', name:'Stormy Ocean', cost:18000, mult:1.7, depth:'#1d263b', sky1:'#5f6c86', sky2:'#101827', fishBonus:18, rare:63, desc:'Rough waves and powerful fish.' },
-  { id:'jungle', name:'Jungle River', cost:35000, mult:1.8, depth:'#0b8f5a', sky1:'#88ff88', sky2:'#0d5c36', fishBonus:20, rare:75, desc:'Fast river full of rare jungle fish.' },
-  { id:'toxic', name:'Toxic Marsh', cost:65000, mult:1.9, depth:'#7cff00', sky1:'#d4ff75', sky2:'#234d00', fishBonus:22, rare:88, desc:'Glowing waters with dangerous rewards.' },
+  { id:'mangrove', name:'Mangrove Swamp', cost:4500, mult:1.5, depth:'#1f6b4a', sky1:'#9be7a1', sky2:'#154734', fishBonus:3, rare:5, desc:'Thick swamp waters with strange fish.' },
+  { id:'crystal', name:'Crystal Lagoon', cost:9000, mult:1.6, depth:'#5df2ff', sky1:'#d7ffff', sky2:'#26b6c9', fishBonus:4, rare:6, desc:'Bright crystal water with shiny catches.' },
+  { id:'storm', name:'Stormy Ocean', cost:18000, mult:1.7, depth:'#1d263b', sky1:'#5f6c86', sky2:'#101827', fishBonus:4, rare:7, desc:'Rough waves and powerful fish.' },
+  { id:'jungle', name:'Jungle River', cost:35000, mult:1.8, depth:'#0b8f5a', sky1:'#88ff88', sky2:'#0d5c36', fishBonus:5, rare:8, desc:'Fast river full of rare jungle fish.' },
+  { id:'toxic', name:'Toxic Marsh', cost:65000, mult:1.9, depth:'#7cff00', sky1:'#d4ff75', sky2:'#234d00', fishBonus:6, rare:9, desc:'Glowing waters with dangerous rewards.' },
 
-  { id:'desert', name:'Desert Oasis', cost:120000, mult:2, depth:'#1ecbe1', sky1:'#ffe29a', sky2:'#d88b35', fishBonus:24, rare:102, desc:'Hidden oasis with valuable fish.' },
-  { id:'moon', name:'Moonlit Tide', cost:220000, mult:2.1, depth:'#151a40', sky1:'#8d9bff', sky2:'#06091f', fishBonus:26, rare:120, desc:'Night water with glowing moon fish.' },
-  { id:'void', name:'Void Sea', cost:400000, mult:2.2, depth:'#090014', sky1:'#3b0a69', sky2:'#050008', fishBonus:28, rare:145, desc:'Dark reality-bending waters.' },
-  { id:'heaven', name:'Skyfall Waters', cost:650000, mult:2.3, depth:'#8ee7ff', sky1:'#ffffff', sky2:'#76b6ff', fishBonus:30, rare:170, desc:'Floating ocean above the clouds.' },
-  { id:'galaxy', name:'Galaxy Ocean', cost:1000000, mult:2.5, depth:'#12003b', sky1:'#bb8cff', sky2:'#020010', fishBonus:34, rare:210, desc:'Final cosmic map with insane rewards.' }
+  { id:'desert', name:'Desert Oasis', cost:120000, mult:2, depth:'#1ecbe1', sky1:'#ffe29a', sky2:'#d88b35', fishBonus:7, rare:10, desc:'Hidden oasis with valuable fish.' },
+  { id:'moon', name:'Moonlit Tide', cost:220000, mult:2.1, depth:'#151a40', sky1:'#8d9bff', sky2:'#06091f', fishBonus:8, rare:11, desc:'Night water with glowing moon fish.' },
+  { id:'void', name:'Void Sea', cost:400000, mult:2.2, depth:'#090014', sky1:'#3b0a69', sky2:'#050008', fishBonus:8, rare:12, desc:'Dark reality-bending waters.' },
+  { id:'heaven', name:'Skyfall Waters', cost:650000, mult:2.3, depth:'#8ee7ff', sky1:'#ffffff', sky2:'#76b6ff', fishBonus:9, rare:13, desc:'Floating ocean above the clouds.' },
+  { id:'galaxy', name:'Galaxy Ocean', cost:1000000, mult:2.5, depth:'#12003b', sky1:'#bb8cff', sky2:'#020010', fishBonus:10, rare:15, desc:'Final cosmic map with insane rewards.' }
 ];
 
 const rods = [
@@ -820,7 +820,7 @@ function updateEffects(dt){
   game.messages=game.messages.filter(m=>m.life>0);
 }
 
-function spawnFish(){ game.fish=[]; const count=18+currentMap().fishBonus; for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
+function spawnFish(){ game.fish=[]; const count=15+currentMap().fishBonus; for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
 function spawnChests(){ game.chests=[]; const count=currentMap().id==='bay'?1:2; for(let i=0;i<count;i++) game.chests.push(new TreasureChest()); }
 
 function drawBackground(dt){
