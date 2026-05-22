@@ -215,8 +215,10 @@ const game = {
   upgrades:{speed:0, rope:0, luck:0, magnet:0},
   quests:[
     { text:'Catch 10 fish', goal:10, type:'caught', reward:250, done:false },
-    { text:'Reach 3x combo', goal:3, type:'combo', reward:400, done:false },
-    { text:'Catch a Legendary fish', goal:1, type:'legend', reward:900, done:false }
+    { text:'Reach max combo level', goal:3, type:'combo', reward:500, done:false },
+    { text:'Catch a rainbow fish', goal:1, type:'legend', reward:1000, done:false },
+    { text:'Catch 100 fish', goal:100, type:'catches', reward:5000, done:false },
+    { text:'Catch 1000 fish', goal:1000, type:'lotofcatches', reward:50000, done:false }
   ],
   messages:[], particles:[], fish:[], chests:[]
 };
@@ -826,7 +828,7 @@ function catchChest(chest){
 }
 
 function checkQuests(fish){
-  for(const q of game.quests){ if(q.done) continue; let ok=false; if(q.type==='caught'&&game.caught>=q.goal) ok=true; if(q.type==='combo'&&game.combo>=q.goal) ok=true; if(q.type==='legend'&&fish.type.id>=5) ok=true; if(ok){ q.done=true; game.coins+=q.reward; msg(`QUEST DONE +${q.reward}`, W/2, 120, '#7bed9f'); } }
+  for(const q of game.quests){ if(q.done) continue; let ok=false; if(q.type==='caught'&&game.caught>=q.goal) ok=true; if(q.type==='catches'&&game.caught>=q.goal) ok=true; if(q.type==='lotofcatches'&&game.caught>=q.goal) ok=true; if(q.type==='combo'&&game.combo>=q.goal) ok=true; if(q.type==='legend'&&fish.type.id>=5) ok=true; if(ok){ q.done=true; game.coins+=q.reward; msg(`QUEST DONE +${q.reward}`, W/2, 120, '#7bed9f'); } }
 }
 
 function burst(x,y,color,n=10){ for(let i=0;i<n;i++) game.particles.push({x,y,vx:rand(-4,4),vy:rand(-4,4),life:rand(25,55),color}); }
