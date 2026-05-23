@@ -855,7 +855,39 @@ function drawBackground(dt){
   if(map.id==='lava'){ ctx.fillStyle='rgba(70,30,20,.8)'; ctx.beginPath(); ctx.moveTo(80,225); ctx.lineTo(230,70); ctx.lineTo(390,225); ctx.fill(); ctx.fillStyle='rgba(255,80,0,.8)'; ctx.beginPath(); ctx.moveTo(205,95); ctx.lineTo(230,68); ctx.lineTo(256,95); ctx.fill(); }
   drawWater(210,'rgba(255,255,255,.28)',16,1); drawWater(310,'rgba(0,150,240,.42)',22,1.15); drawWater(510,'rgba(0,100,210,.48)',28,1.3); drawWater(700,'rgba(0,60,160,.58)',34,1.5);
 }
-function drawWater(y,color,amp,spd){ ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,y); for(let x=0;x<=W+40;x+=40){ ctx.lineTo(x,y+Math.sin((x+game.wave*spd)*.012)*amp); } ctx.lineTo(W,H); ctx.closePath(); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=3; ctx.beginPath(); for(let x=0;x<=W+40;x+=40){ const yy=y+Math.sin((x+game.wave*spd)*.012)*amp; if(x===0)ctx.moveTo(x,yy); else ctx.lineTo(x,yy); } ctx.stroke(); }
+function drawWater(y,color,amp,spd){
+  ctx.fillStyle = color;
+
+  ctx.beginPath();
+  ctx.moveTo(0,H);
+  ctx.lineTo(0,y-20);
+
+  for(let x=0; x<=W+40; x+=40){
+    ctx.lineTo(
+      x,
+      (y-20) + Math.sin((x + game.wave * spd) * .012) * amp
+    );
+  }
+
+  ctx.lineTo(W,H);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.lineWidth = 3;
+
+  ctx.beginPath();
+
+  for(let x=0; x<=W+40; x+=40){
+    const yy =
+      (y-20) + Math.sin((x + game.wave * spd) * .012) * amp;
+
+    if(x===0) ctx.moveTo(x,yy);
+    else ctx.lineTo(x,yy);
+  }
+
+  ctx.stroke();
+}
 function drawBoat(){ ctx.save(); const tx = game.transition.active ? W/2 + game.transition.boatX : W/2; ctx.translate(tx,105); ctx.shadowColor='rgba(0,0,0,.28)'; ctx.shadowBlur=12; ctx.shadowOffsetY=8; ctx.fillStyle='#8b4513'; ctx.beginPath(); ctx.moveTo(-170,35); ctx.lineTo(170,35); ctx.lineTo(115,105); ctx.lineTo(-115,105); ctx.closePath(); ctx.fill(); ctx.fillStyle='#5c2f0e'; ctx.fillRect(-110,55,220,18); roundRect(-62,-25,124,65,12,'#f7f1e3','#8b4513',5); roundRect(-42,-10,35,28,6,'#54a0ff','#2e86de',3); roundRect(10,-10,35,28,6,'#54a0ff','#2e86de',3); ctx.fillStyle='#3d2b1f'; ctx.fillRect(-6,-85,12,70); ctx.fillStyle='#ffdd59'; ctx.beginPath(); ctx.moveTo(8,-82); ctx.lineTo(76,-48); ctx.lineTo(8,-18); ctx.closePath(); ctx.fill(); ctx.restore(); }
 function drawHarpoon(){ const sy=160; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(harpoon.x,sy); ctx.lineTo(harpoon.tipX,harpoon.tipY); ctx.stroke(); ctx.save(); ctx.translate(harpoon.tipX,harpoon.tipY); ctx.fillStyle='#2f3542'; roundRect(-5,0,10,60,4,'#2f3542','#111',1); ctx.fillStyle='#ced6e0'; ctx.beginPath(); ctx.moveTo(-13,58); ctx.lineTo(0,88); ctx.lineTo(13,58); ctx.closePath(); ctx.fill(); ctx.restore();
   if(harpoon.status==='still'){ ctx.globalAlpha=.55; ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=3; ctx.setLineDash([8,8]); ctx.beginPath(); ctx.moveTo(harpoon.x,235); ctx.lineTo(harpoon.x,H-40); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; }
