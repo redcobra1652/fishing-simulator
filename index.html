@@ -220,10 +220,11 @@ const game = {
     { text:'Catch 100 fish', goal:100, type:'catches', reward:5000, done:false },
     { text:'Catch 1000 fish', goal:1000, type:'lotofcatches', reward:50000, done:false }
   ],
-  messages:[], particles:[], fish:[], chests:[]
+  collection:{},
+  messages:[], particles:[], fish:[], chests:[], collectionScroll: 0
 };
 
-function save(){ localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests})); }
+function save(){ localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests, collection:game.collection})); }
 function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; }catch(e){} }
 function reset(){ localStorage.removeItem('fishingEmpireSave'); location.reload(); }
 function currentMap(){ return maps.find(m=>m.id===game.map); }
@@ -603,7 +604,7 @@ class Fish{
     }
 
     // 4. Clean fallback allocation 
-    this.type = { ...chosen };
+    this.type = { ...chosen};
     this.variant = chooseVariant(chosen.id);
     this.dir = Math.random() < .5 ? -1 : 1;
     this.w = 140 * chosen.size; 
@@ -805,7 +806,7 @@ function updateHarpoon(dt){
 }
 function catchFish(fish){
   const map=currentMap(); const variantMult=fish.variant?fish.variant.mult:1; const potionMult=game.potions.coin>0?2:1; const base=fish.type.value*map.mult*variantMult*potionMult; game.combo = Math.min(2, game.combo+.125); game.comboTimer=2600;
-  const earned=Math.round(base*game.combo); game.coins += earned; game.score += earned; game.caught++; game.bestCatch=`${fish.variant?fish.variant.label+' ':''}${fish.type.name}`;
+  const earned=Math.round(base*game.combo); game.coins += earned; game.score += earned; game.caught++; game.bestCatch=`${fish.variant?fish.variant.label+' ':''}${fish.type.name}`; game.collection[fish.type.name] = true;
   if(fish.type.id>=5) game.gems += fish.type.id-4;
   msg(`+${earned} coins`, fish.x+fish.w/2, fish.y, '#fff16a');
   if(fish.type.id>=5) msg(`+${fish.type.id-4} gem`, fish.x+fish.w/2, fish.y-30, '#9effff');
@@ -1019,8 +1020,7 @@ function drawTransition(){
 
   ctx.restore();
 }
-
-function drawHUD(){
+function drawHUD() {
 
   buttons = [];
 
@@ -1066,120 +1066,117 @@ function drawHUD(){
 
 
   // =====================================================
-  // RIGHT PANEL
+  // RIGHT PANEL (narrower)
   // =====================================================
 
-  const rightX = W - 350;
+  const rightX = W - 330;   // moved left slightly
+  const panelW = 300;       // smaller panel
 
   roundRect(
     rightX, 14,
-    330, 190,
-    20,
-    'rgba(0,0,0,.35)',
-    'rgba(255,255,255,.20)',
-    2
+    panelW + 20,
+    168,
+    16,
+    'rgba(0,0,0,.30)',
+    'rgba(255,255,255,.12)',
+    1.2
   );
 
 
   // =====================================================
-  // POTIONS SECTION
+  // POTIONS
   // =====================================================
 
-  text('Potions', rightX + 18, 38, 22, 'left', '#ffdd59');
-
   const activePotions = Object.entries(game.potions)
-    .filter(([k,v]) => v > 0)
-    .map(([k,v]) => `${k}: ${Math.ceil(v/1000)}s`)
-    .join('   ');
+    .filter(([_, v]) => v > 0)
+    .map(([k, v]) => `${k} ${Math.ceil(v / 1000)}s`)
+    .join(' • ');
+
+  text('Potions', rightX + 14, 34, 16, 'left', '#ffdd59');
 
   roundRect(
-    rightX + 16,
-    48,
-    298,
-    36,
-    12,
-    'rgba(255,255,255,.08)',
-    'rgba(255,255,255,.12)',
+    rightX + 12,
+    44,
+    panelW + 4,
+    26,
+    8,
+    'rgba(255,255,255,.05)',
+    'rgba(255,255,255,.10)',
     1
   );
 
   text(
-    activePotions || 'No active potions',
-    rightX + 165,
-    72,
-    15,
+    activePotions || 'none',
+    rightX + panelW / 2,
+    62,
+    13,
     'center',
-    activePotions ? '#ffdd59' : '#888'
+    activePotions ? '#ffdd59' : '#777'
   );
 
 
   // =====================================================
-  // TOP BUTTON ROW
+  // BUTTONS (ROW 1 = FULL WIDTH 4 EQUAL BUTTONS)
   // =====================================================
 
-  const btnW = 90;
-  const gap = 12;
-  const row1Y = 102;
+  const gap = 8;
+  const btnH = 32;
+
+  const cols = 3;
+
+  // total usable width inside panel
+  const innerW = panelW - 24; // 12px padding each side
+
+  // compute button width so 4 fit perfectly
+  const btnW = (innerW - gap * (cols - 1)) / cols;
+
+  const x0 = rightX + 12;
+  const y1 = 92;
+
+  // Row 1 (now perfectly fills panel width)
+  addButton(x0 + (btnW + gap) * 0, y1, btnW, btnH, 'Shop',  () => game.panel='shop',  '#0fbcf9').draw('#0fbcf9');
+  addButton(x0 + (btnW + gap) * 1, y1, btnW, btnH, 'Maps',  () => game.panel='maps',  '#00cec9').draw('#00cec9');
+  addButton(x0 + (btnW + gap) * 2, y1, btnW, btnH, 'Quest', () => game.panel='quests','#55efc4').draw('#55efc4');
+
+
+  // Row 2 (3 equal buttons)
+  const cols2 = 3;
+  const btnW2 = (innerW - gap * (cols2 - 1)) / cols2;
+
+  const y2 = 128;
 
   addButton(
-    rightX + 16,
-    row1Y,
-    btnW,
-    42,
-    'Shop',
-    ()=>game.panel='shop',
-    '#0fbcf9'
-  ).draw('#0fbcf9');
-
-  addButton(
-    rightX + 16 + btnW + gap,
-    row1Y,
-    btnW,
-    42,
-    'Maps',
-    ()=>game.panel='maps',
-    '#00cec9'
-  ).draw('#00cec9');
-
-  addButton(
-    rightX + 16 + (btnW + gap) * 2,
-    row1Y,
-    btnW,
-    42,
-    'Rods',
-    ()=>game.panel='rods',
-    '#fdcb6e'
-  ).draw('#fdcb6e');
-
-
-  // =====================================================
-  // BOTTOM BUTTON ROW
-  // =====================================================
-
-  const row2Y = 154;
-
-  addButton(
-    rightX + 16,
-    row2Y,
-    140,
-    42,
+    x0 + (btnW2 + gap) * 0,
+    y2,
+    btnW2,
+    btnH,
     'Bait',
-    ()=>game.panel='bait',
+    () => game.panel = 'bait',
     '#a29bfe'
   ).draw('#a29bfe');
 
   addButton(
-    rightX + 174,
-    row2Y,
-    140,
-    42,
-    'Quests',
-    ()=>game.panel='quests',
-    '#55efc4'
-  ).draw('#55efc4');
+    x0 + (btnW2 + gap) * 1,
+    y2,
+    btnW2,
+    btnH,
+    'Rods',
+    () => game.panel = 'rods',
+    '#fdcb6e'
+  ).draw('#fdcb6e');
+
+  addButton(
+    x0 + (btnW2 + gap) * 2,
+    y2,
+    btnW2+20,
+    btnH,
+    'Catches',
+    () => game.panel = 'collection',
+    '#e17055'
+  ).draw('#e17055');
 }
 function drawPanel(){ if(!game.panel) return; ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,W,H); roundRect(175,95,1160,670,30,'#102a43','rgba(255,255,255,.55)',5); addButton(1250,120,58,58,'X',()=>game.panel=null,'#ff4757').draw('#ff4757'); text(game.panel.toUpperCase(),W/2,145,48,'center');
-  if(game.panel==='shop') drawShopPanel(); if(game.panel==='maps') drawMapsPanel(); if(game.panel==='rods') drawRodsPanel(); if(game.panel==='bait') drawBaitPanel(); if(game.panel==='quests') drawQuestsPanel(); }
+  if(game.panel==='shop') drawShopPanel(); if(game.panel==='maps') drawMapsPanel(); if(game.panel==='rods') drawRodsPanel(); if(game.panel==='bait') drawBaitPanel(); if(game.panel==='quests') drawQuestsPanel(); if(game.panel==='collection') drawCollectionPanel();}
 function buy(cost,fn){ if(game.coins>=cost){ game.coins-=cost; fn(); save(); return true; } msg('Not enough coins',W/2,100,'#ff7675'); return false; }
 function buyGems(cost,fn){ if(game.gems>=cost){ game.gems-=cost; fn(); save(); return true; } msg('Not enough gems',W/2,100,'#9effff'); return false; }
 function upgradeGemCost(lvl,max){ return Math.ceil(1 + lvl * (9 / Math.max(1, max - 1))); }
@@ -1360,6 +1357,201 @@ function drawQuestsPanel(){
   });
 }
 
+function drawCollectionPanel(){
+
+  const cardW = 320;
+  const cardH = 170;
+  const gap = 18;
+
+  const panelX = 175;
+  const panelY = 160;
+  const panelW = 1160;
+  const panelH = 600;
+
+  const startX = 240;
+  const startY = 200;
+
+  // -----------------------------
+  // BUILD GROUPED FISH BY MAP
+  // -----------------------------
+  const grouped = {};
+
+  for(const mapId in fishTypesByMap){
+
+    const mapFish = fishTypesByMap[mapId];
+
+    grouped[mapId] = mapFish;
+  }
+
+  const mapIds = Object.keys(grouped);
+
+  // estimate content height
+  let contentH = 0;
+  for(const id of mapIds){
+    contentH += 60; // header space
+    contentH += Math.ceil(grouped[id].length / 3) * (cardH + gap);
+  }
+
+  const maxScroll = Math.max(0, contentH - panelH + 750);
+
+  game.collectionScroll = clamp(game.collectionScroll || 0, 0, maxScroll);
+
+  ctx.save();
+
+  // clip panel
+  ctx.beginPath();
+  ctx.rect(panelX, panelY, panelW, panelH);
+  ctx.clip();
+
+  let yOffset = startY - game.collectionScroll;
+
+  // -----------------------------
+  // DRAW EACH MAP SECTION
+  // -----------------------------
+  for(const mapId of mapIds){
+
+    const mapFish = grouped[mapId];
+
+    // MAP HEADER
+    yOffset += 40;
+
+    text(
+      maps.find(m=>m.id===mapId)?.name || mapId.toUpperCase(),
+      startX,
+      yOffset,
+      28,
+      'left',
+      '#81ecec'
+    );
+
+    yOffset += 30;
+
+    // GRID
+    const cols = 3;
+
+    mapFish.forEach((f, i)=>{
+
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+
+      const x = startX + col * 360;
+      const y = yOffset + row * (cardH + gap);
+
+      const caught = game.collection[f.name];
+
+      // cull offscreen
+      if(y + cardH < panelY || y > panelY + panelH) return;
+
+      roundRect(
+        x,
+        y,
+        cardW,
+        cardH,
+        18,
+        caught ? 'rgba(46,213,115,.18)' : 'rgba(255,255,255,.08)',
+        'rgba(255,255,255,.18)',
+        2
+      );
+
+      // -----------------------------
+      // FISH DRAW AREA (FULL SIZE)
+      // -----------------------------
+      ctx.save();
+
+      const fx = x + cardW / 2;
+      const fy = y + 70;
+
+      ctx.translate(fx, fy);
+
+      if(caught){
+
+        // BIG FULL FISH (not icon)
+        const scale = 0.65;
+
+        ctx.scale(scale, scale);
+
+        ctx.fillStyle = f.body || '#fff';
+
+        traceFishBody(f.shape || 'round', 220, 120);
+        ctx.fill();
+
+        // fins + pattern for visual richness
+        drawTailShape(f.tail || 'fork', 220, 120, f.fin || '#fff');
+        drawFishPattern(f.pattern || 'none', 220, 120);
+
+        // eye
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(60, -20, 6, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.fillStyle = 'black';
+        ctx.beginPath();
+        ctx.arc(62, -20, 3, 0, Math.PI*2);
+        ctx.fill();
+
+      } else {
+
+        // BIG QUESTION MARK
+        ctx.fillStyle = 'rgba(255,255,255,.25)';
+        ctx.font = '44px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('???', 0, 0);
+      }
+
+      ctx.restore();
+
+      // -----------------------------
+      // TEXT
+      // -----------------------------
+      text(
+        caught ? f.name : 'Unknown Fish',
+        x + 20,
+        y + 140,
+        22,
+        'left',
+        caught ? '#fff' : '#777'
+      );
+
+      text(
+        caught
+          ? 'Caught'
+          : 'Location: ' + (maps.find(m => m.id === mapId)?.name || 'Unknown'),
+        x + 20,
+        y + 160,
+        16,
+        'left',
+        caught ? '#7bed9f' : '#999'
+      );
+
+    });
+
+    const rows = Math.ceil(mapFish.length / 3);
+    yOffset += rows * (cardH + gap) + 40; // spacing between maps
+  }
+
+  ctx.restore();
+
+  // -----------------------------
+  // SCROLLBAR (same style as maps)
+  // -----------------------------
+  if(maxScroll > 0){
+
+    const barX = panelX + panelW + 40;
+    const barY = panelY + 20;
+    const barH = panelH - 100;
+
+    const thumbH = Math.max(40, barH * (panelH / contentH));
+    const scrollRatio = game.collectionScroll / maxScroll;
+
+    const thumbY = barY + (barH - thumbH) * scrollRatio;
+
+    roundRect(barX, barY, 6, barH, 3, 'rgba(255,255,255,.08)');
+    roundRect(barX, thumbY, 6, thumbH, 3, '#e17055');
+  }
+}
+
 function drawEffects(){ for(const p of game.particles){ ctx.globalAlpha=clamp(p.life/40,0,1); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; } for(const m of game.messages){ ctx.globalAlpha=clamp(m.life/45,0,1); text(m.text,m.x,m.y,24,'center',m.color); ctx.globalAlpha=1; } }
 function update(dt){ for(const f of game.fish) f.move(dt); for(const c of game.chests) c.move(dt); updateHarpoon(dt); updateEffects(dt); updateTransition(dt); }
 function draw(ts){
@@ -1393,8 +1585,15 @@ function mousePos(e){ const r=canvas.getBoundingClientRect(); return {x:(e.clien
 canvas.addEventListener('mousemove',e=>{ const p=mousePos(e); game.mouseX=p.x; game.mouseY=p.y; if(harpoon.status==='still') harpoon.x=clamp(game.mouseX,210,W-210); });
 canvas.addEventListener('click',e=>{ const p=mousePos(e); for(let i=buttons.length-1;i>=0;i--){ if(buttons[i].hit(p.x,p.y)){ buttons[i].fn(); return; } } launch(); });
 canvas.addEventListener('wheel', e=>{
-  if(game.panel !== 'maps') return;
-  game.mapScroll += e.deltaY * 0.6;
+  if(game.panel !== 'maps' && game.panel !== 'collection') return;
+
+  if(game.panel === 'maps'){
+    game.mapScroll = (game.mapScroll || 0) + e.deltaY * 0.6;
+  }
+
+  if(game.panel === 'collection'){
+    game.collectionScroll = (game.collectionScroll || 0) + e.deltaY * 0.6;
+  }
 });
 window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape') game.panel=null; if(e.key.toLowerCase()==='r') reset(); });
 
