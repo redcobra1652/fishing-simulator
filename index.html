@@ -221,6 +221,10 @@ const game = {
     { text:'Catch 1000 fish', goal:1000, type:'lotofcatches', reward:50000, done:false }
   ],
   collection:{},
+  tutorial: {
+    active: true,
+    step: 0
+  },
   messages:[], particles:[], fish:[], chests:[], collectionScroll: 0
 };
 
@@ -1288,6 +1292,16 @@ function checkQuests(fish){
   for(const q of game.quests){ if(q.done) continue; let ok=false; if(q.type==='caught'&&game.caught>=q.goal) ok=true; if(q.type==='catches'&&game.caught>=q.goal) ok=true; if(q.type==='lotofcatches'&&game.caught>=q.goal) ok=true; if(q.type==='combo'&&game.combo>=q.goal) ok=true; if(q.type==='legend'&&fish.type.id>=5) ok=true; if(ok){ q.done=true; game.coins+=q.reward; msg(`QUEST DONE +${q.reward}`, W/2, 120, '#7bed9f'); } }
 }
 
+const tutorialSteps = [
+
+  {text: 'Move your mouse to aim the harpoon'}, {text: 'Click or press SPACE to throw the harpoon'},
+  {text: 'Catch a fish!'},{text: 'Open the SHOP menu'}, {text: 'Catch rare fish to get gems and buy upgrades! Close the shop menu to continue'},
+  {text: 'Open the RODS menu'}, {text: 'Buy better rods with coins! Close the RODS menu to continue.'}, {text: 'Open the MAPS menu'},
+  {text: 'Travel to new locations from here! Close the MAPS menu to continue'}, {text: 'Open the QUEST menu'}, {text: 'You can complete these quests for rewards! Close the QUEST menu to continue'}, 
+  {text: 'Open the CATCHES menu'}, {text: 'See all your caught fish here! Close the CATCHES menu to complete the tutorial'},
+  {text: 'Tutorial Complete!'}
+];
+
 function burst(x,y,color,n=10){ for(let i=0;i<n;i++) game.particles.push({x,y,vx:rand(-4,4),vy:rand(-4,4),life:rand(25,55),color}); }
 function msg(text,x,y,color){ game.messages.push({text,x,y,color,life:80}); }
 function updateEffects(dt){
@@ -1298,6 +1312,136 @@ function updateEffects(dt){
   game.particles=game.particles.filter(p=>p.life>0);
   for(const m of game.messages){ m.y-=.7; m.life--; }
   game.messages=game.messages.filter(m=>m.life>0);
+}
+
+function updateTutorial(){
+
+  if(!game.tutorial.active) return;
+
+  const t = game.tutorial;
+
+  // STEP 0
+  if(t.step === 0){
+
+    if(Math.abs(game.mouseX - W/2) > 120){
+
+      t.step++;
+    }
+  }
+
+  // STEP 1
+  else if(t.step === 1){
+
+    if(harpoon.status !== 'still'){
+
+      t.step++;
+    }
+  }
+
+  // STEP 2
+  else if(t.step === 2){
+
+    if(game.caught >= 1){
+
+      t.step++;
+    }
+  }
+
+  // STEP 3
+  else if(t.step === 3){
+
+    if(game.panel === 'shop'){
+
+      t.step++;
+    }
+  }
+
+  // STEP 4
+  else if(t.step === 4){
+
+    if(game.panel === null){
+
+      t.step++;
+    }
+  }
+
+  // STEP 5
+  else if(t.step === 5){
+
+    if(game.panel === 'rods'){
+
+      t.step++;
+    }
+  }
+
+  // STEP 6
+  else if(t.step === 6){
+
+    if(game.panel === null){
+
+      t.step++;
+    }
+  }
+  
+  // STEP 7
+  else if(t.step === 7){
+
+    if(game.panel === 'maps'){
+
+      t.step++;
+    }
+  }
+
+  // STEP 8
+  else if(t.step === 8){
+
+    if(game.panel === null){
+
+      t.step++;
+    }
+  }
+
+  // STEP 9
+  else if(t.step === 9){
+
+    if(game.panel === 'quests'){
+
+      t.step++;
+    }
+  }
+
+  // STEP 10
+  else if(t.step === 10){
+
+    if(game.panel === null){
+
+      t.step++;
+    }
+  }
+
+  // STEP 11
+  else if(t.step === 11){
+
+    if(game.panel === 'collection'){
+
+      t.step++;
+    }
+  }
+
+  // STEP 12
+  else if(t.step === 12){
+
+    if(game.panel === null){
+
+      t.step++;
+    }
+  }
+
+  // END
+  else if(t.step >= tutorialSteps.length - 1){
+
+    game.tutorial.active = false;
+  }
 }
 
 function spawnFish(){ game.fish=[]; const count=15+currentMap().fishBonus; for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
@@ -1630,6 +1774,44 @@ function drawHUD() {
     () => game.panel = 'collection',
     '#e17055'
   ).draw('#e17055');
+}
+
+function drawTutorial(){
+
+  if(!game.tutorial.active) return;
+
+  const step = tutorialSteps[game.tutorial.step];
+  // dark bar
+  ctx.fillStyle = 'rgba(0,0,0,.45)';
+  ctx.fillRect(0, 0, W, 90);
+  // tutorial text
+  text(
+    step.text,
+    W/2,
+    50,
+    30,
+    'center',
+    '#fff16a'
+  );
+  // progress dots
+  for(let i=0;i<tutorialSteps.length;i++){
+
+    ctx.fillStyle =
+      i === game.tutorial.step
+      ? '#fff16a'
+      : 'rgba(255,255,255,.3)';
+
+    ctx.beginPath();
+
+    ctx.arc(
+      W/2 - 50 + i*25,
+      76,
+      5,
+      0,
+      Math.PI*2
+    );
+    ctx.fill();
+  }
 }
 function drawPanel(){ if(!game.panel) return; ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,W,H); roundRect(175,95,1160,670,30,'#102a43','rgba(255,255,255,.55)',5); addButton(1250,120,58,58,'X',()=>game.panel=null,'#ff4757').draw('#ff4757'); text(game.panel.toUpperCase(),W/2,145,48,'center');
   if(game.panel==='shop') drawShopPanel(); if(game.panel==='maps') drawMapsPanel(); if(game.panel==='rods') drawRodsPanel(); if(game.panel==='bait') drawBaitPanel(); if(game.panel==='quests') drawQuestsPanel(); if(game.panel==='collection') drawCollectionPanel();}
@@ -2009,7 +2191,7 @@ function drawCollectionPanel(){
 }
 
 function drawEffects(){ for(const p of game.particles){ ctx.globalAlpha=clamp(p.life/40,0,1); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; } for(const m of game.messages){ ctx.globalAlpha=clamp(m.life/45,0,1); text(m.text,m.x,m.y,24,'center',m.color); ctx.globalAlpha=1; } }
-function update(dt){ for(const f of game.fish) f.move(dt); for(const c of game.chests) c.move(dt); updateHarpoon(dt); updateEffects(dt); updateTransition(dt); }
+function update(dt){ for(const f of game.fish) f.move(dt); for(const c of game.chests) c.move(dt); updateHarpoon(dt); updateEffects(dt); updateTransition(dt); updateTutorial(); }
 function draw(ts){
 
   const ox = rand(-game.shake, game.shake);
@@ -2034,6 +2216,8 @@ function draw(ts){
 
   // TRANSITION MUST ALSO BE NO SHAKE (you already do this)
   drawTransition();
+
+  drawTutorial();
 }
 function loop(t){ const dt=Math.min(33,t-game.last||16); game.last=t; update(dt); draw(t); requestAnimationFrame(loop); }
 
