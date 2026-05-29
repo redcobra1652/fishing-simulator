@@ -222,7 +222,7 @@ const game = {
   ],
   collection:{},
   tutorial: {
-    active: true,
+    active: false,
     step: 0
   },
   messages:[], particles:[], fish:[], chests:[], collectionScroll: 0
@@ -1734,9 +1734,32 @@ function drawHUD() {
   const y1 = 92;
 
   // Row 1 (now perfectly fills panel width)
-  addButton(x0 + (btnW + gap) * 0, y1, btnW, btnH, 'Shop',  () => game.panel='shop',  '#0fbcf9').draw('#0fbcf9');
-  addButton(x0 + (btnW + gap) * 1, y1, btnW, btnH, 'Maps',  () => game.panel='maps',  '#00cec9').draw('#00cec9');
-  addButton(x0 + (btnW + gap) * 2, y1, btnW, btnH, 'Quest', () => game.panel='quests','#55efc4').draw('#55efc4');
+  const pulse = 0.7 + Math.sin(Date.now() * 0.01) * 0.3;
+
+  const shopColor =
+    game.tutorial.active && game.tutorial.step === 3
+      ? `rgba(255,241,106,${pulse})`
+    : '#0fbcf9';
+  const mapsColor =
+    game.tutorial.active && game.tutorial.step === 7
+      ? `rgba(255,241,106,${pulse})`
+      : '#00cec9';
+  const questColor =
+    game.tutorial.active && game.tutorial.step === 9
+      ? `rgba(255,241,106,${pulse})`
+      : '#55efc4';
+  const rodsColor =
+    game.tutorial.active && game.tutorial.step === 5
+      ? `rgba(255,241,106,${pulse})`
+      : '#fdcb6e';
+  const catchesColor =
+    game.tutorial.active && game.tutorial.step === 11
+      ? `rgba(255,241,106,${pulse})`
+      : '#e17055';
+
+  addButton(x0 + (btnW + gap) * 0, y1, btnW, btnH, 'Shop',  () => game.panel='shop', shopColor).draw(shopColor);
+  addButton(x0 + (btnW + gap) * 1, y1, btnW, btnH, 'Maps',  () => game.panel='maps', mapsColor).draw(mapsColor);
+  addButton(x0 + (btnW + gap) * 2, y1, btnW, btnH, 'Quest', () => game.panel='quests',questColor).draw(questColor);
 
 
   // Row 2 (3 equal buttons)
@@ -1762,8 +1785,8 @@ function drawHUD() {
     btnH,
     'Rods',
     () => game.panel = 'rods',
-    '#fdcb6e'
-  ).draw('#fdcb6e');
+    rodsColor
+  ).draw(rodsColor);
 
   addButton(
     x0 + (btnW2 + gap) * 2,
@@ -1772,8 +1795,8 @@ function drawHUD() {
     btnH,
     'Catches',
     () => game.panel = 'collection',
-    '#e17055'
-  ).draw('#e17055');
+    catchesColor
+  ).draw(catchesColor);
 }
 
 function drawTutorial(){
@@ -1851,9 +1874,9 @@ function drawMapsPanel(){
   const gap = 14;
 
   const panelX = 200;
-  const panelY = 170;
+  const panelY = 190;
   const panelW = 1160;
-  const panelH = 590;
+  const panelH = 565;
 
   const startX = 240;
   const startY = 190;
@@ -2002,9 +2025,9 @@ function drawCollectionPanel(){
   const gap = 18;
 
   const panelX = 175;
-  const panelY = 160;
+  const panelY = 180;
   const panelW = 1160;
-  const panelH = 600;
+  const panelH = 575;
 
   const startX = 240;
   const startY = 200;
@@ -2237,7 +2260,12 @@ canvas.addEventListener('wheel', e=>{
 });
 window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape') game.panel=null; if(e.key.toLowerCase()==='r') reset(); });
 
-load(); spawnFish(); requestAnimationFrame(loop);
+load(); // Enable tutorial ONLY for brand new players
+if(game.caught === 0){
+  game.tutorial.active = true;
+  game.tutorial.step = 0;
+}
+spawnFish(); requestAnimationFrame(loop);
 </script>
 </body>
 </html>
