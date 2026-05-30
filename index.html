@@ -66,11 +66,28 @@ const maps = [
 ];
 
 const rods = [
-  { id:'wood', name:'Wood Rod', cost:0, power:1, desc:'Normal speed.' },
-  { id:'steel', name:'Steel Rod', cost:1200, power:1.15, desc:'+15% harpoon speed.' },
-  { id:'gold', name:'Gold Rod', cost:25000, power:1.25, desc:'+25% harpoon speed.' },
-  { id:'mythic', name:'Mythic Rod', cost:300000, power:1.55, desc:'+55% harpoon speed.' }
+  { id:'wood',      name:'Wood Rod',      cost:0,        power:1,    desc:'Standard rod. Works in Starter Bay & Coral Reef.' },
+  { id:'steel',     name:'Steel Rod',     cost:1200,     power:1.15, desc:'+15% speed. Required: Deep Sea through Frozen Abyss.' },
+  { id:'gold',      name:'Gold Rod',      cost:25000,    power:1.25, desc:'+25% speed. Required: Mangrove Swamp through Jungle River.' },
+  { id:'mythic',    name:'Mythic Rod',    cost:300000,   power:1.55, desc:'+55% speed. Required: Toxic Marsh through Skyfall Waters.' },
+  { id:'elemental', name:'Elemental Rod', cost:1000000,  power:2.0,  desc:'+100% speed. Required: Galaxy Ocean. Unlock via quest.' }
 ];
+
+// Rod tier requirement per map (min rod rank needed)
+// Ranks: wood=0, steel=1, gold=2, mythic=3, elemental=4
+const ROD_RANK = { wood:0, steel:1, gold:2, mythic:3, elemental:4 };
+const MAP_ROD_REQ = {
+  bay:0, reef:0,
+  deep:1, lava:1, ice:1,
+  mangrove:2, crystal:2, storm:2, jungle:2,
+  toxic:3, desert:3, moon:3, void:3, heaven:3,
+  galaxy:4
+};
+function rodRankOk(mapId){ return ROD_RANK[game.rod] >= (MAP_ROD_REQ[mapId]||0); }
+function rodNeededFor(mapId){
+  const need = MAP_ROD_REQ[mapId]||0;
+  return Object.keys(ROD_RANK).find(k=>ROD_RANK[k]===need)||'wood';
+}
 
 const fishTypesByMap = {
   bay: [
@@ -218,8 +235,12 @@ const game = {
     { text:'Reach max combo level', goal:2, type:'combo', reward:500, done:false },
     { text:'Catch a rare fish', goal:1, type:'legend', reward:1000, done:false },
     { text:'Catch 100 fish', goal:100, type:'catches', reward:5000, done:false },
-    { text:'Catch 1000 fish', goal:1000, type:'lotofcatches', reward:50000, done:false }
+    { text:'Catch 1000 fish', goal:1000, type:'lotofcatches', reward:50000, done:false },
+    { text:'Catch a Frost Wyrm AND an Infernal Hydra', goal:1, type:'elemental_unlock', reward:0, done:false,
+      desc:'Unlocks the Elemental Rod purchase (required for Galaxy Ocean)',
+      caughtWyrm:false, caughtHydra:false }
   ],
+  elementalUnlocked: false,
   collection:{},
   tutorial: {
     active: false,
@@ -228,8 +249,8 @@ const game = {
   messages:[], particles:[], fish:[], chests:[], collectionScroll: 0
 };
 
-function save(){ localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests, collection:game.collection})); }
-function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; }catch(e){} }
+function save(){ localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked})); }
+function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; }catch(e){} }
 function reset(){ localStorage.removeItem('fishingEmpireSave'); location.reload(); }
 function currentMap(){ return maps.find(m=>m.id===game.map); }
 function currentRod(){ return rods.find(r=>r.id===game.rod); }
@@ -1064,28 +1085,85 @@ class Fish{
     this.h = 70 * chosen.size;
     this.x = this.dir === 1 ? -this.w - rand(0, 500) : W + rand(0, 500);
     this.y = rand(245, 735);
-    this.speed = rand(2.2, 4.8) + (chosen.id * .18) + (map.fishBonus * .05);
-    this.bob = rand(0, Math.PI * 2); 
+    this.baseSpeed = rand(2.2, 4.8) + (chosen.id * .18) + (map.fishBonus * .05);
+    this.speed = this.baseSpeed;
+    this.bob = rand(0, Math.PI * 2);
+    // Tail wag — side-to-side oscillation (horizontal plane)
+    this.wagPhase = rand(0, Math.PI * 2);
+    this.wagSpeed = rand(3.5, 6.5) + chosen.id * 0.4; // faster for rare fish
+    this.wagAmp   = rand(0.14, 0.26);                  // wag sweep angle in radians
+    // Dash behaviour
+    this.dashCooldown = rand(2000, 6000); // ms until first dash
+    this.dashing = false;
+    this.dashDuration = 0;
+    this.dashMult = rand(2.4, 3.8) + chosen.id * 0.2; // rarer = more violent dash
     this.caught = false;
   }
-  move(dt){ if(this.caught) return; this.bob+=dt*.005; this.x += this.dir*this.speed*dt*.06; if(this.x>W+this.w+60||this.x<-this.w-60) Object.assign(this,new Fish()); }
+  move(dt){
+    if(this.caught) return;
+    this.bob += dt * .005;
+    this.wagPhase += dt * .001 * this.wagSpeed;
+
+    // Dash logic
+    if(!this.dashing){
+      this.dashCooldown -= dt;
+      if(this.dashCooldown <= 0){
+        this.dashing = true;
+        this.dashDuration = rand(300, 700);  // ms
+        this.speed = this.baseSpeed * this.dashMult;
+        // Sharpen wag during dash
+        this._savedWagAmp = this.wagAmp;
+        this.wagAmp = Math.min(0.45, this.wagAmp * 2.5);
+        this.wagSpeed *= 1.8;
+      }
+    } else {
+      this.dashDuration -= dt;
+      if(this.dashDuration <= 0){
+        this.dashing = false;
+        this.speed = this.baseSpeed;
+        this.wagAmp = this._savedWagAmp;
+        this.wagSpeed /= 1.8;
+        this.dashCooldown = rand(3000, 8000);
+      }
+    }
+
+    this.x += this.dir * this.speed * dt * .06;
+    if(this.x > W + this.w + 60 || this.x < -this.w - 60) Object.assign(this, new Fish());
+  }
 draw(){
   const f = this.type, bob = Math.sin(this.bob) * 4;
   const v = this.variant;
   const isGolden = f.golden || (v && v.id === 'golden');
   const isRainbow = f.rainbow || (v && v.id === 'rainbow');
 
+  // Lateral tail wag: oscillates left-right (around the fish's vertical axis at the tail root)
+  const wagAngle = Math.sin(this.wagPhase) * (this.wagAmp || 0.2);
+
   ctx.save();
   ctx.translate(this.x + this.w/2, this.y + this.h/2 + bob);
   ctx.scale(this.dir, 1);
 
+  // Dash visual: ghost trail behind fish
+  if(this.dashing){
+    for(let g = 1; g <= 3; g++){
+      ctx.save();
+      ctx.globalAlpha = 0.12 * (4 - g);
+      ctx.translate(-g * 14, 0);
+      ctx.fillStyle = f.body || '#fff';
+      traceFishBody(f.shape || 'round', this.w * 0.9, this.h * 0.9);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   if(f.glow || isRainbow){
     ctx.shadowColor = isRainbow ? 'rgba(255,255,255,.85)' : f.fin;
-    ctx.shadowBlur = 18;
+    ctx.shadowBlur = this.dashing ? 28 : 18;
     ctx.shadowOffsetY = 0;
   }else if(isGolden){
     ctx.shadowColor = '#ffd700';
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = this.dashing ? 24 : 16;
     ctx.shadowOffsetY = 0;
   }else{
     ctx.shadowColor = f.id >= 4 ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.25)';
@@ -1093,7 +1171,15 @@ draw(){
     ctx.shadowOffsetY = 4;
   }
 
+  // Draw tail with lateral wag applied — pivot around rear of body
+  ctx.save();
+  // Tail root is roughly at (-w*0.44, 0) in local space
+  const tailRootX = -this.w * 0.44;
+  ctx.translate(tailRootX, 0);
+  ctx.rotate(wagAngle);
+  ctx.translate(-tailRootX, 0);
   drawTailShape(f.tail || 'triangle', this.w, this.h, isGolden ? '#e1a800' : (isRainbow ? '#ff6b81' : f.fin));
+  ctx.restore();
 
   ctx.fillStyle = fishGradient(f, this.w, this.h, v);
   traceFishBody(f.shape || 'round', this.w, this.h);
@@ -1251,6 +1337,17 @@ function updateHarpoon(dt){
       const centerY=r.y+r.h/2;
       const cleanHit = harpoon.tipX>r.x+8 && harpoon.tipX<r.x+r.w-8 && harpoon.tipY>r.y+6 && harpoon.tipY<r.y+r.h-6;
       if(cleanHit){
+        // Check if current rod is strong enough for this map's fish
+        if(!rodRankOk(game.map)){
+          // Bounce the harpoon back — scales too strong
+          harpoon.status='back';
+          game.shake=5;
+          burst(harpoon.tipX,harpoon.tipY,'#aaaaaa',14);
+          const needed = rodNeededFor(game.map);
+          const rodName = rods.find(r=>r.id===needed)?.name || needed;
+          msg(`Scales too strong! Need: ${rodName}`,W/2,200,'#ff7675');
+          break;
+        }
         harpoon.fish=fish; fish.caught=true; harpoon.status='back'; game.shake=8;
         harpoon.tipY=centerY; burst(harpoon.tipX,harpoon.tipY,fish.type.body,18); break;
       }
@@ -1289,7 +1386,31 @@ function catchChest(chest){
 }
 
 function checkQuests(fish){
-  for(const q of game.quests){ if(q.done) continue; let ok=false; if(q.type==='caught'&&game.caught>=q.goal) ok=true; if(q.type==='catches'&&game.caught>=q.goal) ok=true; if(q.type==='lotofcatches'&&game.caught>=q.goal) ok=true; if(q.type==='combo'&&game.combo>=q.goal) ok=true; if(q.type==='legend'&&fish.type.id>=5) ok=true; if(ok){ q.done=true; game.coins+=q.reward; msg(`QUEST DONE +${q.reward}`, W/2, 120, '#7bed9f'); } }
+  for(const q of game.quests){
+    if(q.done) continue;
+    let ok=false;
+    if(q.type==='caught'&&game.caught>=q.goal) ok=true;
+    if(q.type==='catches'&&game.caught>=q.goal) ok=true;
+    if(q.type==='lotofcatches'&&game.caught>=q.goal) ok=true;
+    if(q.type==='combo'&&game.combo>=q.goal) ok=true;
+    if(q.type==='legend'&&fish.type.id>=5) ok=true;
+    if(q.type==='elemental_unlock'){
+      if(fish.type.name==='Frost Wyrm') q.caughtWyrm=true;
+      if(fish.type.name==='Infernal Hydra') q.caughtHydra=true;
+      if(q.caughtWyrm && q.caughtHydra) ok=true;
+    }
+    if(ok){
+      q.done=true;
+      if(q.type==='elemental_unlock'){
+        game.elementalUnlocked=true;
+        msg('QUEST DONE! Elemental Rod is now available!', W/2, 120, '#ff9ff3');
+      } else {
+        game.coins+=q.reward;
+        msg(`QUEST DONE +${q.reward}`, W/2, 120, '#7bed9f');
+      }
+    }
+  }
+  save();
 }
 
 const tutorialSteps = [
@@ -1490,25 +1611,108 @@ function drawWater(y,color,amp,spd){
   ctx.stroke();
 }
 function drawBoat(){ ctx.save(); const tx = game.transition.active ? W/2 + game.transition.boatX : W/2; ctx.translate(tx,105); ctx.shadowColor='rgba(0,0,0,.28)'; ctx.shadowBlur=12; ctx.shadowOffsetY=8; ctx.fillStyle='#8b4513'; ctx.beginPath(); ctx.moveTo(-170,35); ctx.lineTo(170,35); ctx.lineTo(115,105); ctx.lineTo(-115,105); ctx.closePath(); ctx.fill(); ctx.fillStyle='#5c2f0e'; ctx.fillRect(-110,55,220,18); roundRect(-62,-25,124,65,12,'#f7f1e3','#8b4513',5); roundRect(-42,-10,35,28,6,'#54a0ff','#2e86de',3); roundRect(10,-10,35,28,6,'#54a0ff','#2e86de',3); ctx.fillStyle='#3d2b1f'; ctx.fillRect(-6,-85,12,70); ctx.fillStyle='#ffdd59'; ctx.beginPath(); ctx.moveTo(8,-82); ctx.lineTo(76,-48); ctx.lineTo(8,-18); ctx.closePath(); ctx.fill(); ctx.restore(); }
-function drawHarpoon(){ const sy=160; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(harpoon.x,sy); ctx.lineTo(harpoon.tipX,harpoon.tipY); ctx.stroke(); ctx.save(); ctx.translate(harpoon.tipX,harpoon.tipY); ctx.fillStyle='#2f3542'; roundRect(-5,0,10,60,4,'#2f3542','#111',1); ctx.fillStyle='#ced6e0'; ctx.beginPath(); ctx.moveTo(-13,58); ctx.lineTo(0,88); ctx.lineTo(13,58); ctx.closePath(); ctx.fill(); ctx.restore();
-  if(harpoon.status==='still'){ ctx.globalAlpha=.55; ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=3; ctx.setLineDash([8,8]); ctx.beginPath(); ctx.moveTo(harpoon.x,235); ctx.lineTo(harpoon.x,H-40); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; }
+function getHarpoonColors(){
+  const rod = game.rod;
+  if(rod==='steel')     return { shaft:'#b0c4d8', tip:'#778899', head:'#e8eef4', line:'rgba(140,160,180,.9)', glow:null };
+  if(rod==='gold')      return { shaft:'#d4a800', tip:'#a07800', head:'#ffe770', line:'rgba(220,180,0,.9)',   glow:'rgba(255,215,0,.4)' };
+  if(rod==='mythic')    return { shaft:'#7c3ccc', tip:'#4a1888', head:'#cf9fff', line:'rgba(160,80,255,.9)', glow:'rgba(180,80,255,.5)' };
+  if(rod==='elemental') return { shaft:'elemental', tip:'#1a1a2e', head:'#ffffff', line:'rgba(200,200,255,.9)', glow:'rgba(255,200,80,.5)' };
+  // wood default
+  return { shaft:'#a07840', tip:'#6b4f2a', head:'#d4a870', line:'rgba(120,80,40,.9)', glow:null };
+}
+
+function drawHarpoon(){
+  const sy = 160;
+  const hc = getHarpoonColors();
+
+  // ── Rope from boat to harpoon anchor ──
   if(!game.transition?.active){
-    const boatX = W / 2;
-    const boatY = 160; // lower = more center of boat body
-
     ctx.save();
-
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; // solid black
-    ctx.lineWidth = 4; // slightly thick
+    ctx.strokeStyle = hc.line;
+    ctx.lineWidth = 4;
     ctx.lineCap = 'round';
-    ctx.setLineDash([]); // ensure NOT dotted
-
+    ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(harpoon.x, 160); // harpoon anchor (same as before)
-    ctx.lineTo(boatX, boatY);
-
+    ctx.moveTo(harpoon.x, 160);
+    ctx.lineTo(W/2, 160);
     ctx.stroke();
     ctx.restore();
+  }
+
+  // ── Line from anchor to tip ──
+  ctx.save();
+  if(hc.glow){ ctx.shadowColor=hc.glow; ctx.shadowBlur=8; }
+  ctx.strokeStyle = hc.line;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(harpoon.x, sy);
+  ctx.lineTo(harpoon.tipX, harpoon.tipY);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Harpoon body ──
+  ctx.save();
+  ctx.translate(harpoon.tipX, harpoon.tipY);
+
+  if(hc.glow){ ctx.shadowColor=hc.glow; ctx.shadowBlur=14; }
+
+  if(hc.shaft === 'elemental'){
+    // Top half = fire gradient
+    const fireGrad = ctx.createLinearGradient(-5,0,5,30);
+    fireGrad.addColorStop(0,'#ff6b00');
+    fireGrad.addColorStop(1,'#ff2200');
+    roundRect(-5,0,10,30,3,fireGrad,'#ff4400',1);
+
+    // Bottom half = ice gradient
+    const iceGrad = ctx.createLinearGradient(-5,30,5,60);
+    iceGrad.addColorStop(0,'#00aaff');
+    iceGrad.addColorStop(1,'#0044cc');
+    roundRect(-5,30,10,30,3,iceGrad,'#0088ff',1);
+
+    // Lightning bolt in the middle
+    const t = Date.now() * 0.006;
+    ctx.shadowColor = 'rgba(255,255,150,0.9)';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = '#ffff80';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo( 2, 22);
+    ctx.lineTo(-3, 30 + Math.sin(t)*1.5);
+    ctx.lineTo( 3, 30 + Math.sin(t)*1.5);
+    ctx.lineTo(-2, 38);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  } else {
+    roundRect(-5,0,10,60,4,hc.shaft,'#111',1);
+  }
+
+  // Arrowhead
+  ctx.fillStyle = hc.head;
+  ctx.shadowColor = hc.glow || 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = hc.glow ? 10 : 4;
+  ctx.beginPath();
+  ctx.moveTo(-13,58);
+  ctx.lineTo(0, 88);
+  ctx.lineTo(13,58);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
+  // ── Aim guide dotted line ──
+  if(harpoon.status==='still'){
+    ctx.globalAlpha=.55;
+    ctx.strokeStyle='rgba(255,255,255,.75)';
+    ctx.lineWidth=3;
+    ctx.setLineDash([8,8]);
+    ctx.beginPath();
+    ctx.moveTo(harpoon.x,235);
+    ctx.lineTo(harpoon.x,H-40);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha=1;
   }
 }
 
@@ -1917,17 +2121,25 @@ function drawMapsPanel(){
     );
 
     text(m.name, startX + 20, y + 38, 26);
+    text(`${m.mult}x coins • ${m.desc}`, startX + 20, y + 70, 16, 'left', '#dfe6e9');
 
-    text(
-      `${m.mult}x coins • ${m.desc}`,
-      startX + 20,
-      y + 70,
-      16,
-      'left',
-      '#dfe6e9'
-    );
+    // Rod requirement badge
+    const reqRodId = rodNeededFor(m.id);
+    const reqRank = MAP_ROD_REQ[m.id] || 0;
+    if(reqRank > 0){
+      const reqRodName = rods.find(r=>r.id===reqRodId)?.name || reqRodId;
+      const playerRank = ROD_RANK[game.rod] || 0;
+      const meetsReq = playerRank >= reqRank;
+      const badgeColor = meetsReq ? 'rgba(46,213,115,.22)' : 'rgba(255,71,87,.22)';
+      const badgeBorder = meetsReq ? '#2ed573' : '#ff4757';
+      const badgeText = meetsReq ? `✓ ${reqRodName}` : `Needs: ${reqRodName}`;
+      roundRect(startX + 430, y + 24, 270, 32, 10, badgeColor, badgeBorder, 1.5);
+      text(badgeText, startX + 565, y + 40, 14, 'center', meetsReq ? '#7bed9f' : '#ff7675');
+    }
 
-    const label = active ? 'Equipped' : unlocked ? 'Equip' : `Buy ${m.cost}`;
+    const canEnter = rodRankOk(m.id);
+    const label = active ? 'Equipped' : unlocked ? (canEnter ? 'Equip' : 'Wrong Rod') : `Buy ${m.cost.toLocaleString()}`;
+    const btnColor = active ? '#636e72' : (!canEnter && unlocked) ? '#ff4757' : '#00cec9';
 
     addButton(
       startX + 880,
@@ -1936,10 +2148,20 @@ function drawMapsPanel(){
       40,
       label,
       ()=>{
+        if(!canEnter && unlocked){
+          const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
+          msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
+          return;
+        }
         if(unlocked){
           changeMap(m.id);
           save();
         } else {
+          if(!canEnter){
+            const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
+            msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
+            return;
+          }
           buy(m.cost, ()=>{
             game.unlockedMaps[m.id] = true;
             changeMap(m.id);
@@ -1947,8 +2169,8 @@ function drawMapsPanel(){
           });
         }
       },
-      active ? '#636e72' : '#00cec9'
-    ).draw(active ? '#636e72' : '#00cec9');
+      btnColor
+    ).draw(btnColor);
 
   });
 
@@ -1976,7 +2198,46 @@ function drawMapsPanel(){
     roundRect(barX, thumbY, 6, thumbH, 3, '#00cec9');
   }
 }
-function drawRodsPanel(){ rods.forEach((r,i)=>{ const y=220+i*105, unlocked=game.unlockedRods[r.id], active=game.rod===r.id; roundRect(270,y,970,82,18,active?'rgba(253,203,110,.28)':'rgba(255,255,255,.10)','rgba(255,255,255,.2)',2); text(r.name,300,y+28,28); text(`${r.desc} • Power ${r.power}x`,300,y+58,18,'left','#dfe6e9'); const label=active?'Equipped':unlocked?'Equip':`Buy ${r.cost}`; addButton(1020,y+16,180,50,label,()=>{ if(unlocked){ game.rod=r.id; save(); } else buy(r.cost,()=>{game.unlockedRods[r.id]=true; game.rod=r.id;}); },active?'#636e72':'#fdcb6e').draw(active?'#636e72':'#fdcb6e'); }); }
+function drawRodsPanel(){
+  // Check elemental quest progress
+  const elemQ = game.quests.find(q=>q.type==='elemental_unlock');
+  const elemUnlocked = game.elementalUnlocked;
+
+  rods.forEach((r,i)=>{
+    const y = 220 + i * 105;
+    const unlocked = game.unlockedRods[r.id];
+    const active = game.rod === r.id;
+    const isElem = r.id === 'elemental';
+
+    // Background card — elemental gets special colour
+    let cardFill = active ? 'rgba(253,203,110,.28)' : 'rgba(255,255,255,.10)';
+    let cardBorder = 'rgba(255,255,255,.2)';
+    if(isElem && elemUnlocked && !active){ cardFill='rgba(255,150,40,.12)'; cardBorder='rgba(255,150,40,.5)'; }
+    if(isElem && !elemUnlocked){ cardFill='rgba(80,40,120,.18)'; cardBorder='rgba(160,80,255,.35)'; }
+    roundRect(270,y,970,82,18,cardFill,cardBorder,2);
+
+    // Rod name
+    const nameColor = isElem ? (elemUnlocked ? '#ffcc66' : '#aa66ff') : 'white';
+    text(r.name, 300, y+28, 28, 'left', nameColor);
+
+    if(isElem && !elemUnlocked){
+      // Show quest progress
+      const wc = elemQ?.caughtWyrm  ? '✓':'✗';
+      const hc = elemQ?.caughtHydra ? '✓':'✗';
+      text(`LOCKED — Quest: catch Frost Wyrm [${wc}] + Infernal Hydra [${hc}]`, 300, y+58, 17, 'left', '#c8a0ff');
+      // Greyed-out locked button
+      addButton(1020,y+16,180,50,'🔒 Locked',()=>{ msg('Complete the quest to unlock the Elemental Rod!',W/2,200,'#c8a0ff'); },'#4a3060').draw('#4a3060');
+    } else {
+      text(`${r.desc}  •  Power ${r.power}x`, 300, y+58, 18, 'left', '#dfe6e9');
+      const label = active ? 'Equipped' : unlocked ? 'Equip' : `Buy ${r.cost.toLocaleString()}`;
+      const btnCol = active ? '#636e72' : isElem ? '#ff9944' : '#fdcb6e';
+      addButton(1020,y+16,180,50,label,()=>{
+        if(unlocked){ game.rod=r.id; save(); }
+        else buy(r.cost,()=>{ game.unlockedRods[r.id]=true; game.rod=r.id; save(); });
+      }, btnCol).draw(btnCol);
+    }
+  });
+}
 function drawBaitPanel(){ text('Bait boosts rare fish for the next 30 seconds.',W/2,230,26,'center','#dfe6e9'); roundRect(380,295,750,170,24,'rgba(255,255,255,.10)','rgba(255,255,255,.25)',2); text('Lucky Bait',W/2,340,34,'center'); text('Cost: 350 coins • +rare fish chance',W/2,390,22,'center','#dfe6e9'); addButton(620,420,270,58,game.baitActive?'Active':'Buy + Use',()=>{ if(!game.baitActive) buy(350,()=>{ game.baitActive=true; setTimeout(()=>game.baitActive=false,30000); }); },game.baitActive?'#636e72':'#a29bfe').draw(game.baitActive?'#636e72':'#a29bfe'); }
 function drawQuestsPanel(){
   const boxH = 82;
@@ -1985,36 +2246,35 @@ function drawQuestsPanel(){
 
   game.quests.forEach((q,i)=>{
     const y = startY + i * (boxH + gap);
+    const isElem = q.type === 'elemental_unlock';
 
-    roundRect(
-      300,
-      y,
-      900,
-      boxH,
-      18,
-      q.done ? 'rgba(46,213,115,.25)' : 'rgba(255,255,255,.10)',
-      'rgba(255,255,255,.22)',
-      2
-    );
+    const cardFill = q.done
+      ? (isElem ? 'rgba(255,150,40,.20)' : 'rgba(46,213,115,.25)')
+      : (isElem ? 'rgba(120,60,200,.18)' : 'rgba(255,255,255,.10)');
+    const cardBorder = isElem ? (q.done ? 'rgba(255,180,80,.6)' : 'rgba(180,80,255,.4)') : 'rgba(255,255,255,.22)';
 
-    text(q.text, 330, y + 28, 28);
-    text(
-      q.done ? `Completed • Reward claimed` : `Reward: ${q.reward} coins`,
-      330,
-      y + 58,
-      20,
-      'left',
-      '#dfe6e9'
-    );
+    roundRect(300, y, 900, boxH, 18, cardFill, cardBorder, 2);
 
-    text(
-      q.done ? 'DONE' : 'ACTIVE',
-      1110,
-      y + 42,
-      24,
-      'center',
-      q.done ? '#7bed9f' : '#fff16a'
-    );
+    text(q.text, 330, y + 28, isElem ? 22 : 28, 'left', isElem ? '#ffcc88' : 'white');
+
+    let subText;
+    if(isElem && !q.done){
+      const wc = q.caughtWyrm  ? '✓' : '✗';
+      const hc = q.caughtHydra ? '✓' : '✗';
+      subText = `Frost Wyrm [${wc}]  •  Infernal Hydra [${hc}]  →  Unlocks Elemental Rod purchase`;
+    } else if(isElem && q.done){
+      subText = 'Completed! Elemental Rod is now available in Rods shop.';
+    } else if(q.done){
+      subText = 'Completed • Reward claimed';
+    } else {
+      subText = `Reward: ${q.reward.toLocaleString()} coins`;
+    }
+
+    text(subText, 330, y + 58, 16, 'left', '#dfe6e9');
+
+    const statusText  = q.done ? 'DONE' : 'ACTIVE';
+    const statusColor = q.done ? (isElem ? '#ffcc44' : '#7bed9f') : '#fff16a';
+    text(statusText, 1110, y + 42, 24, 'center', statusColor);
   });
 }
 
