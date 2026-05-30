@@ -249,7 +249,13 @@ const game = {
   messages:[], particles:[], fish:[], chests:[], collectionScroll: 0
 };
 
-function save(){ localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked})); }
+function save(){
+  try {
+    localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked})); 
+  } catch (e) {
+    console.warn("Save failed: Storage might be full or private.");
+  }
+}
 function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; }catch(e){} }
 function reset(){ localStorage.removeItem('fishingEmpireSave'); location.reload(); }
 function currentMap(){ return maps.find(m=>m.id===game.map); }
