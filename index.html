@@ -212,8 +212,8 @@ const fishTypesByMap = {
 };
 
 function chooseVariant(typeId){
-  let goldenChance = 3 + game.upgrades.luck * .7 + (game.baitActive ? 4 : 0) + (game.potions.luck>0 ? 5 : 0);
-  let rainbowChance = .25 + game.upgrades.luck * .25 + (game.baitActive ? 1.5 : 0) + (game.potions.luck>0 ? 2 : 0);
+  let goldenChance = 1 + game.upgrades.luck * .5 + (game.baitActive ? 4 : 0) + (game.potions.luck>0 ? 5 : 0);
+  let rainbowChance = .125 + game.upgrades.luck * .125 + (game.baitActive ? 1.5 : 0) + (game.potions.luck>0 ? 2 : 0);
   if(typeId >= 5){ goldenChance += 2; rainbowChance += 1; }
   const r = rand(0,100);
   if(r < rainbowChance) return { id:'rainbow', label:'Rainbow', mult:5, border:'#ff4dff' };
@@ -1036,7 +1036,7 @@ function drawFishPattern(pattern, w, h){
 class Fish{
   constructor() {
     const map = currentMap();
-    const rareBoost = map.rare + game.upgrades.luck * .4 + (game.baitActive ? 20 : 0) + (game.potions.luck > 0 ? 24 : 0);
+    const rareBoost = map.rare + game.upgrades.luck * .25 + (game.baitActive ? 20 : 0) + (game.potions.luck > 0 ? 24 : 0);
     const fishPool = fishTypesByMap[map.id] || fishTypesByMap.bay;
 
     // 1. Calculate pool total with a dampened, subtle boost
@@ -1363,7 +1363,7 @@ function updateHarpoon(dt){
   }
 }
 function catchFish(fish){
-  const map=currentMap(); const variantMult=fish.variant?fish.variant.mult:1; const potionMult=game.potions.coin>0?2:1; const base=fish.type.value*map.mult*variantMult*potionMult; game.combo = Math.min(2, game.combo+.125); game.comboTimer=2600;
+  const map=currentMap(); const variantMult=fish.variant?fish.variant.mult:1; const potionMult=game.potions.coin>0?2:1; const base=fish.type.value*map.mult*variantMult*potionMult * (1 + (game.upgrades.magnet * 0.14)); game.combo = Math.min(2, game.combo+.125); game.comboTimer=2600;
   const earned=Math.round(base*game.combo); game.coins += earned; game.score += earned; game.caught++; game.bestCatch=`${fish.variant?fish.variant.label+' ':''}${fish.type.name}`; game.collection[fish.type.name] = true;
   if(fish.type.id>=5) game.gems += fish.type.id-4;
   msg(`+${fmt(earned)} coins`, fish.x+fish.w/2, fish.y, '#fff16a');
@@ -2053,7 +2053,7 @@ function drawShopPanel(){
     ['speed','Harpoon Speed',`Level ${game.upgrades.speed}/8`],
     ['rope','Longer Rope',`Level ${game.upgrades.rope}/6`],
     ['luck','Better Luck',`Level ${game.upgrades.luck}/7`],
-    ['magnet','Coin Magnet',`Level ${game.upgrades.magnet}/5`]
+    ['magnet','Coin Multiplier',`Level ${game.upgrades.magnet}/5`]
   ];
 
   ups.forEach((u,i)=>{
