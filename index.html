@@ -1300,8 +1300,8 @@ class TreasureChest{
 }
 
 const harpoon = { x:750, y:142, status:'still', tipX:750, tipY:160, fish:null, chest:null };
-function harpoonSpeed(){ return (10 + game.upgrades.speed*2.1)*currentRod().power*(game.potions.speed>0?1.65:1); }
-function ropeRange(){ return 660 + game.upgrades.rope*70; }
+function harpoonSpeed(){ return (10 + game.upgrades.speed*1.5)*currentRod().power*(game.potions.speed>0?1.65:1); }
+function ropeRange(){ return 400 + game.upgrades.rope*100/3; }
 function launch(){
   if(game.panel || game.transition.active) return;
   if(harpoon.status!=='still') return;
@@ -2047,7 +2047,7 @@ function buy(cost,fn){ if(game.coins>=cost){ game.coins-=cost; fn(); save(); ret
 function buyGems(cost,fn){ if(game.gems>=cost){ game.gems-=cost; fn(); save(); return true; } msg('Not enough gems',W/2,100,'#9effff'); return false; }
 function upgradeGemCost(lvl,max){ return Math.ceil(1 + lvl * (9 / Math.max(1, max - 1))); }
 function drawShopPanel(){
-  text('Shop upgrades use gems now. Early upgrades are cheap; final upgrade costs 10 gems.', W/2, 188, 19, 'center', '#9effff');
+  text('Shop upgrades use gems! Early upgrades are cheap; final upgrade costs 10 gems.', W/2, 188, 19, 'center', '#9effff');
 
   const ups=[
     ['speed','Harpoon Speed',`Level ${game.upgrades.speed}/8`],
