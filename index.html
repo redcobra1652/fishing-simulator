@@ -1306,7 +1306,7 @@ class TreasureChest{
 }
 
 const harpoon = { x:750, y:142, status:'still', tipX:750, tipY:160, fish:null, chest:null };
-function harpoonSpeed(){ return (10 + game.upgrades.speed*1.5)*currentRod().power*(game.potions.speed>0?1.65:1); }
+function harpoonSpeed(){ return (10 + game.upgrades.speed)*currentRod().power*(game.potions.speed>0?1.65:1); }
 function ropeRange(){ return 400 + game.upgrades.rope*100/3; }
 function launch(){
   if(game.panel || game.transition.active) return;
