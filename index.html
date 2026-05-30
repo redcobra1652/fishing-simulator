@@ -67,10 +67,10 @@ const maps = [
 
 const rods = [
   { id:'wood',      name:'Wood Harpoon',      cost:0,        power:1,    desc:'Standard harpoon. Works in basic maps.' },
-  { id:'steel',     name:'Steel Harpoon',     cost:1200,     power:1.10, desc:'+10% speed and power. Required: Frozen Abyss through Stormy Ocean.' },
-  { id:'gold',      name:'Gold Harpoon',      cost:25000,    power:1.20, desc:'+20% speed and power. Required: Jungle River through Moonlit Tide.' },
-  { id:'mythic',    name:'Mythic Harpoon',    cost:300000,   power:1.55, desc:'+35% speed and power. Required: Toxic Marsh through Skyfall Waters.' },
-  { id:'elemental', name:'Elemental Harpoon', cost:1000000,  power:1.75, desc:'+75% speed and power. Required: Galaxy Ocean. Unlock via quest.' }
+  { id:'steel',     name:'Steel Harpoon',     cost:1200,     power:1.10, desc:'+10% speed and power.' },
+  { id:'gold',      name:'Gold Harpoon',      cost:25000,    power:1.20, desc:'+20% speed and power.' },
+  { id:'mythic',    name:'Mythic Harpoon',    cost:300000,   power:1.55, desc:'+35% speed and power.' },
+  { id:'elemental', name:'Elemental Harpoon', cost:1000000,  power:1.75, desc:'+75% speed and power.' }
 ];
 
 // Rod tier requirement per map (min rod rank needed)
@@ -257,6 +257,7 @@ function currentRod(){ return rods.find(r=>r.id===game.rod); }
 function rand(a,b){ return Math.random()*(b-a)+a; }
 function irand(a,b){ return Math.floor(rand(a,b+1)); }
 function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+function fmt(n){ if(n>=1e9) return (n/1e9).toFixed(n%1e9===0?0:1).replace(/\.0$/,'')+'B'; if(n>=1e6) return (n/1e6).toFixed(n%1e6===0?0:1).replace(/\.0$/,'')+'M'; if(n>=1e3) return (n/1e3).toFixed(n%1e3===0?0:1).replace(/\.0$/,'')+'k'; return String(n); }
 
 function roundRect(x,y,w,h,r,fill,stroke,lw=2){
   ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
@@ -1365,7 +1366,7 @@ function catchFish(fish){
   const map=currentMap(); const variantMult=fish.variant?fish.variant.mult:1; const potionMult=game.potions.coin>0?2:1; const base=fish.type.value*map.mult*variantMult*potionMult; game.combo = Math.min(2, game.combo+.125); game.comboTimer=2600;
   const earned=Math.round(base*game.combo); game.coins += earned; game.score += earned; game.caught++; game.bestCatch=`${fish.variant?fish.variant.label+' ':''}${fish.type.name}`; game.collection[fish.type.name] = true;
   if(fish.type.id>=5) game.gems += fish.type.id-4;
-  msg(`+${earned} coins`, fish.x+fish.w/2, fish.y, '#fff16a');
+  msg(`+${fmt(earned)} coins`, fish.x+fish.w/2, fish.y, '#fff16a');
   if(fish.type.id>=5) msg(`+${fish.type.id-4} gem`, fish.x+fish.w/2, fish.y-30, '#9effff');
   game.fish.splice(game.fish.indexOf(fish),1); game.fish.push(new Fish());
   checkQuests(fish); save();
@@ -1406,7 +1407,7 @@ function checkQuests(fish){
         msg('QUEST DONE! Elemental Rod is now available!', W/2, 120, '#ff9ff3');
       } else {
         game.coins+=q.reward;
-        msg(`QUEST DONE +${q.reward}`, W/2, 120, '#7bed9f');
+        msg(`QUEST DONE +${fmt(q.reward)}`, W/2, 120, '#7bed9f');
       }
     }
   }
@@ -2138,7 +2139,7 @@ function drawMapsPanel(){
     }
 
     const canEnter = rodRankOk(m.id);
-    const label = active ? 'Equipped' : unlocked ? (canEnter ? 'Equip' : 'Wrong Rod') : `Buy ${m.cost.toLocaleString()}`;
+    const label = active ? 'Equipped' : unlocked ? (canEnter ? 'Equip' : 'Wrong Rod') : `Buy ${fmt(m.cost)}`;
     const btnColor = active ? '#636e72' : (!canEnter && unlocked) ? '#ff4757' : '#00cec9';
 
     addButton(
@@ -2229,7 +2230,7 @@ function drawRodsPanel(){
       addButton(1020,y+16,180,50,'🔒 Locked',()=>{ msg('Complete the quest to unlock the Elemental Rod!',W/2,200,'#c8a0ff'); },'#4a3060').draw('#4a3060');
     } else {
       text(`${r.desc}  •  Power ${r.power}x`, 300, y+58, 18, 'left', '#dfe6e9');
-      const label = active ? 'Equipped' : unlocked ? 'Equip' : `Buy ${r.cost.toLocaleString()}`;
+      const label = active ? 'Equipped' : unlocked ? 'Equip' : `Buy ${fmt(r.cost)}`;
       const btnCol = active ? '#636e72' : isElem ? '#ff9944' : '#fdcb6e';
       addButton(1020,y+16,180,50,label,()=>{
         if(unlocked){ game.rod=r.id; save(); }
