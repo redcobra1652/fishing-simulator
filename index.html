@@ -1365,7 +1365,7 @@ function updateHarpoon(dt){
 function catchFish(fish){
   const map=currentMap(); const variantMult=fish.variant?fish.variant.mult:1; const potionMult=game.potions.coin>0?2:1; const base=fish.type.value*map.mult*variantMult*potionMult * (1 + (game.upgrades.magnet * 0.14)); game.combo = Math.min(2, game.combo+.125); game.comboTimer=2600;
   const earned=Math.round(base*game.combo); game.coins += earned; game.score += earned; game.caught++; game.bestCatch=`${fish.variant?fish.variant.label+' ':''}${fish.type.name}`; game.collection[fish.type.name] = true;
-  if(fish.type.id>=5) game.gems += fish.type.id-4;
+  if(fish.type.id>=4) game.gems += fish.type.id-3/2;
   msg(`+${fmt(earned)} coins`, fish.x+fish.w/2, fish.y, '#fff16a');
   if(fish.type.id>=5) msg(`+${fish.type.id-4} gem`, fish.x+fish.w/2, fish.y-30, '#9effff');
   game.fish.splice(game.fish.indexOf(fish),1); game.fish.push(new Fish());
@@ -2047,7 +2047,7 @@ function buy(cost,fn){ if(game.coins>=cost){ game.coins-=cost; fn(); save(); ret
 function buyGems(cost,fn){ if(game.gems>=cost){ game.gems-=cost; fn(); save(); return true; } msg('Not enough gems',W/2,100,'#9effff'); return false; }
 function upgradeGemCost(lvl,max){ return Math.ceil(1 + lvl * (9 / Math.max(1, max - 1))); }
 function drawShopPanel(){
-  text('Shop upgrades use gems! Early upgrades are cheap; final upgrade costs 10 gems.', W/2, 188, 19, 'center', '#9effff');
+  text('Shop upgrades use gems! Get gems by catching rare fish that have labels!', W/2, 188, 19, 'center', '#9effff');
 
   const ups=[
     ['speed','Harpoon Speed',`Level ${game.upgrades.speed}/8`],
