@@ -67,10 +67,10 @@ const maps = [
 
 const rods = [
   { id:'wood',      name:'Wood Rod',      cost:0,        power:1,    desc:'Standard rod. Works in Starter Bay & Coral Reef.' },
-  { id:'steel',     name:'Steel Rod',     cost:1200,     power:1.15, desc:'+15% speed. Required: Deep Sea through Frozen Abyss.' },
-  { id:'gold',      name:'Gold Rod',      cost:25000,    power:1.25, desc:'+25% speed. Required: Mangrove Swamp through Jungle River.' },
-  { id:'mythic',    name:'Mythic Rod',    cost:300000,   power:1.55, desc:'+55% speed. Required: Toxic Marsh through Skyfall Waters.' },
-  { id:'elemental', name:'Elemental Rod', cost:1000000,  power:2.0,  desc:'+100% speed. Required: Galaxy Ocean. Unlock via quest.' }
+  { id:'steel',     name:'Steel Rod',     cost:1200,     power:1.10, desc:'+10% speed and power. Required: Frozen Abyss through Stormy Ocean.' },
+  { id:'gold',      name:'Gold Rod',      cost:25000,    power:1.20, desc:'+20% speed and power. Required: Jungle River through Moonlit Tide.' },
+  { id:'mythic',    name:'Mythic Rod',    cost:300000,   power:1.55, desc:'+35% speed and power. Required: Toxic Marsh through Skyfall Waters.' },
+  { id:'elemental', name:'Elemental Rod', cost:1000000,  power:1.75,  desc:'+75% speed and power. Required: Galaxy Ocean. Unlock via quest.' }
 ];
 
 // Rod tier requirement per map (min rod rank needed)
@@ -78,9 +78,9 @@ const rods = [
 const ROD_RANK = { wood:0, steel:1, gold:2, mythic:3, elemental:4 };
 const MAP_ROD_REQ = {
   bay:0, reef:0,
-  deep:1, lava:1, ice:1,
-  mangrove:2, crystal:2, storm:2, jungle:2,
-  toxic:3, desert:3, moon:3, void:3, heaven:3,
+  deep:0, lava:0, ice:1,
+  mangrove:1, crystal:1, storm:1, jungle:2,
+  toxic:2, desert:2, moon:3, void:3, heaven:3,
   galaxy:4
 };
 function rodRankOk(mapId){ return ROD_RANK[game.rod] >= (MAP_ROD_REQ[mapId]||0); }
@@ -1091,7 +1091,7 @@ class Fish{
     // Tail wag — side-to-side oscillation (horizontal plane)
     this.wagPhase = rand(0, Math.PI * 2);
     this.wagSpeed = rand(3.5, 6.5) + chosen.id * 0.4; // faster for rare fish
-    this.wagAmp   = rand(0.14, 0.26);                  // wag sweep angle in radians
+    this.wagAmp   = rand(0.075, 0.15);                  // wag sweep angle in radians
     // Dash behaviour
     this.dashCooldown = rand(2000, 6000); // ms until first dash
     this.dashing = false;
@@ -1109,7 +1109,7 @@ class Fish{
       this.dashCooldown -= dt;
       if(this.dashCooldown <= 0){
         this.dashing = true;
-        this.dashDuration = rand(300, 700);  // ms
+        this.dashDuration = rand(200, 400);  // ms
         this.speed = this.baseSpeed * this.dashMult;
         // Sharpen wag during dash
         this._savedWagAmp = this.wagAmp;
