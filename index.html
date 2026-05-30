@@ -1096,7 +1096,7 @@ class Fish{
     this.dashCooldown = rand(2000, 6000); // ms until first dash
     this.dashing = false;
     this.dashDuration = 0;
-    this.dashMult = rand(2.4, 3.8) + chosen.id * 0.2; // rarer = more violent dash
+    this.dashMult = rand(2.4, 3.8) + chosen.id * 0.3; // rarer = more violent dash
     this.caught = false;
   }
   move(dt){
@@ -1109,7 +1109,7 @@ class Fish{
       this.dashCooldown -= dt;
       if(this.dashCooldown <= 0){
         this.dashing = true;
-        this.dashDuration = rand(200, 400);  // ms
+        this.dashDuration = rand(300, 600);  // ms
         this.speed = this.baseSpeed * this.dashMult;
         // Sharpen wag during dash
         this._savedWagAmp = this.wagAmp;
@@ -1417,7 +1417,7 @@ const tutorialSteps = [
 
   {text: 'Move your mouse to aim the harpoon'}, {text: 'Click or press SPACE to throw the harpoon'},
   {text: 'Catch a fish!'},{text: 'Open the SHOP menu'}, {text: 'Catch rare fish to get gems and buy upgrades! Close the shop menu to continue'},
-  {text: 'Open the RODS menu'}, {text: 'Buy better rods with coins! Close the RODS menu to continue.'}, {text: 'Open the MAPS menu'},
+  {text: 'Open the GEAR menu'}, {text: 'Buy better rods with coins! Close the GEAR menu to continue.'}, {text: 'Open the MAPS menu'},
   {text: 'Travel to new locations from here! Close the MAPS menu to continue'}, {text: 'Open the QUEST menu'}, {text: 'You can complete these quests for rewards! Close the QUEST menu to continue'}, 
   {text: 'Open the CATCHES menu'}, {text: 'See all your caught fish here! Close the CATCHES menu to complete the tutorial'},
   {text: 'Tutorial Complete!'}
