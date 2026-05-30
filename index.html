@@ -66,11 +66,11 @@ const maps = [
 ];
 
 const rods = [
-  { id:'wood',      name:'Wood Rod',      cost:0,        power:1,    desc:'Standard rod. Works in Starter Bay & Coral Reef.' },
-  { id:'steel',     name:'Steel Rod',     cost:1200,     power:1.10, desc:'+10% speed and power. Required: Frozen Abyss through Stormy Ocean.' },
-  { id:'gold',      name:'Gold Rod',      cost:25000,    power:1.20, desc:'+20% speed and power. Required: Jungle River through Moonlit Tide.' },
-  { id:'mythic',    name:'Mythic Rod',    cost:300000,   power:1.55, desc:'+35% speed and power. Required: Toxic Marsh through Skyfall Waters.' },
-  { id:'elemental', name:'Elemental Rod', cost:1000000,  power:1.75,  desc:'+75% speed and power. Required: Galaxy Ocean. Unlock via quest.' }
+  { id:'wood',      name:'Wood Harpoon',      cost:0,        power:1,    desc:'Standard harpoon. Works in basic maps.' },
+  { id:'steel',     name:'Steel Harpoon',     cost:1200,     power:1.10, desc:'+10% speed and power. Required: Frozen Abyss through Stormy Ocean.' },
+  { id:'gold',      name:'Gold Harpoon',      cost:25000,    power:1.20, desc:'+20% speed and power. Required: Jungle River through Moonlit Tide.' },
+  { id:'mythic',    name:'Mythic Harpoon',    cost:300000,   power:1.55, desc:'+35% speed and power. Required: Toxic Marsh through Skyfall Waters.' },
+  { id:'elemental', name:'Elemental Harpoon', cost:1000000,  power:1.75, desc:'+75% speed and power. Required: Galaxy Ocean. Unlock via quest.' }
 ];
 
 // Rod tier requirement per map (min rod rank needed)
@@ -1987,7 +1987,7 @@ function drawHUD() {
     y2,
     btnW2,
     btnH,
-    'Rods',
+    'Gear',
     () => game.panel = 'rods',
     rodsColor
   ).draw(rodsColor);
@@ -2242,7 +2242,7 @@ function drawBaitPanel(){ text('Bait boosts rare fish for the next 30 seconds.',
 function drawQuestsPanel(){
   const boxH = 82;
   const gap = 14;
-  const startY = 230;
+  const startY = 175;
 
   game.quests.forEach((q,i)=>{
     const y = startY + i * (boxH + gap);
@@ -2263,7 +2263,7 @@ function drawQuestsPanel(){
       const hc = q.caughtHydra ? '✓' : '✗';
       subText = `Frost Wyrm [${wc}]  •  Infernal Hydra [${hc}]  →  Unlocks Elemental Rod purchase`;
     } else if(isElem && q.done){
-      subText = 'Completed! Elemental Rod is now available in Rods shop.';
+      subText = 'Completed! Elemental Rod is now available in Gear.';
     } else if(q.done){
       subText = 'Completed • Reward claimed';
     } else {
