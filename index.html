@@ -51,7 +51,6 @@ const SFX = (() => {
     return ctx_a;
   }
 
-  // settings stored on the sfx object, loaded/saved with game
   const settings = {
     masterVolume: 0.7,
     mute: false,
@@ -60,8 +59,9 @@ const SFX = (() => {
     muteQuests: false
   };
 
-  // active reel oscillator (so we can stop it)
-  let reelNode = null;
+  // active reel (interval-based clicks)
+  let reelInterval = null;
+  let reelTickCount = 0;
 
   function play(fn, category='fishing'){
     if(settings.mute) return;
@@ -75,64 +75,106 @@ const SFX = (() => {
     } catch(e){}
   }
 
-  // ── REEL (continuous while harpoon travels) ──
+  // ── REEL: line unspool — rapid mechanical clicks that accelerate ──
+  function _reelTick(ac, vol, speed){
+    try {
+      const t = ac.currentTime;
+      // Short sharp noise burst = one ratchet click
+      const dur = 0.018;
+      const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * dur), ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for(let i = 0; i < data.length; i++){
+        const env = Math.exp(-i / (ac.sampleRate * 0.006));
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      // High-pass to make it clicky, not bassy
+      const hp = ac.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 1800;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(vol * 0.18, t);
+      src.connect(hp); hp.connect(g); g.connect(ac.destination);
+      src.start(t);
+    } catch(e){}
+  }
+
   function startReel(){
     if(settings.mute || settings.muteFishing) return;
+    stopReel();
+    reelTickCount = 0;
     try {
       const ac = getCtx();
       if(ac.state === 'suspended') ac.resume();
-      stopReel();
-      const osc = ac.createOscillator();
-      const gain = ac.createGain();
-      // Mechanical whirring sound
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(90, ac.currentTime);
-      osc.frequency.linearRampToValueAtTime(160, ac.currentTime + 0.6);
-      gain.gain.setValueAtTime(settings.masterVolume * 0.09, ac.currentTime);
-      osc.connect(gain);
-      gain.connect(ac.destination);
-      osc.start();
-      reelNode = { osc, gain };
+      // Start slow, speed up over ~0.5s — like a spool catching speed
+      let delay = 120; // ms between clicks
+      const minDelay = 38;
+      function scheduleTick(){
+        if(reelInterval === null) return;
+        _reelTick(ac, settings.masterVolume);
+        reelTickCount++;
+        delay = Math.max(minDelay, delay * 0.88);
+        reelInterval = setTimeout(scheduleTick, delay);
+      }
+      reelInterval = setTimeout(scheduleTick, 0);
     } catch(e){}
   }
 
   function stopReel(){
-    try {
-      if(reelNode){
-        reelNode.gain.gain.linearRampToValueAtTime(0, reelNode.gain.context.currentTime + 0.07);
-        setTimeout(()=>{ try{ reelNode.osc.stop(); }catch(e){} reelNode=null; }, 90);
-      }
-    } catch(e){ reelNode=null; }
+    if(reelInterval !== null){ clearTimeout(reelInterval); reelInterval = null; }
   }
 
-  // ── FISH CAUGHT ──
+  // ── FISH / CHEST CAUGHT: wet splash thwack + line snap ──
   function fishCaught(rare=1){
     play((ac, vol) => {
       const t = ac.currentTime;
-      // Satisfying "thwack + rising ding"
-      const buf = ac.createBuffer(1, ac.sampleRate * 0.18, ac.sampleRate);
-      const data = buf.getChannelData(0);
-      for(let i=0;i<data.length;i++){
-        const env = Math.exp(-i / (ac.sampleRate * 0.06));
-        data[i] = (Math.random()*2-1) * env * 0.8;
-      }
-      const src = ac.createBufferSource();
-      src.buffer = buf;
-      const g = ac.createGain();
-      g.gain.setValueAtTime(vol * 0.55, t);
-      src.connect(g); g.connect(ac.destination); src.start(t);
 
-      // Rising ping for rarer fish
+      // 1. Thump — low body impact (fish hits boat/deck)
+      const thumpBuf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.09), ac.sampleRate);
+      const td = thumpBuf.getChannelData(0);
+      for(let i = 0; i < td.length; i++){
+        const env = Math.exp(-i / (ac.sampleRate * 0.028));
+        td[i] = (Math.random() * 2 - 1) * env;
+      }
+      const thumpSrc = ac.createBufferSource();
+      thumpSrc.buffer = thumpBuf;
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 280;
+      const tg = ac.createGain();
+      tg.gain.setValueAtTime(vol * 0.75, t);
+      thumpSrc.connect(lp); lp.connect(tg); tg.connect(ac.destination);
+      thumpSrc.start(t);
+
+      // 2. Splash — broadband noise swell
+      const splashLen = Math.ceil(ac.sampleRate * 0.22);
+      const splashBuf = ac.createBuffer(1, splashLen, ac.sampleRate);
+      const sd = splashBuf.getChannelData(0);
+      for(let i = 0; i < splashLen; i++){
+        const attack = Math.min(1, i / (ac.sampleRate * 0.012));
+        const decay  = Math.exp(-i / (ac.sampleRate * 0.065));
+        sd[i] = (Math.random() * 2 - 1) * attack * decay;
+      }
+      const splashSrc = ac.createBufferSource();
+      splashSrc.buffer = splashBuf;
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.6;
+      const sg = ac.createGain();
+      sg.gain.setValueAtTime(vol * 0.38, t + 0.01);
+      splashSrc.connect(bp); bp.connect(sg); sg.connect(ac.destination);
+      splashSrc.start(t + 0.01);
+
+      // 3. Bright ping — scales with rarity
+      const baseFreq = 480 + rare * 60;
       const osc = ac.createOscillator();
       const og = ac.createGain();
-      const baseFreq = 520 + rare * 80;
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(baseFreq, t + 0.04);
-      osc.frequency.linearRampToValueAtTime(baseFreq * 1.55, t + 0.22);
-      og.gain.setValueAtTime(vol * 0.28, t + 0.04);
-      og.gain.linearRampToValueAtTime(0, t + 0.34);
+      osc.frequency.setValueAtTime(baseFreq, t + 0.05);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.6, t + 0.28);
+      og.gain.setValueAtTime(vol * 0.22, t + 0.05);
+      og.gain.linearRampToValueAtTime(0, t + 0.38);
       osc.connect(og); og.connect(ac.destination);
-      osc.start(t + 0.04); osc.stop(t + 0.35);
+      osc.start(t + 0.05); osc.stop(t + 0.40);
     }, 'fishing');
   }
 
@@ -140,7 +182,6 @@ const SFX = (() => {
   function questDone(){
     play((ac, vol) => {
       const t = ac.currentTime;
-      // Fanfare: rising chord arpeggio
       const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
       notes.forEach((freq, i) => {
         const osc = ac.createOscillator();
@@ -174,51 +215,79 @@ const SFX = (() => {
     }, 'ui');
   }
 
-  // ── PANEL OPEN ──
+  // ── PANEL OPEN: crisp high click ──
   function panelOpen(){
     play((ac, vol) => {
       const t = ac.currentTime;
+      // Sharp attack transient
+      const clickBuf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.008), ac.sampleRate);
+      const cd = clickBuf.getChannelData(0);
+      for(let i = 0; i < cd.length; i++){
+        cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.002));
+      }
+      const csrc = ac.createBufferSource();
+      csrc.buffer = clickBuf;
+      const hp2 = ac.createBiquadFilter(); hp2.type = 'highpass'; hp2.frequency.value = 3000;
+      const cg = ac.createGain(); cg.gain.setValueAtTime(vol * 0.55, t);
+      csrc.connect(hp2); hp2.connect(cg); cg.connect(ac.destination);
+      csrc.start(t);
+      // Bright chirp tail
       const osc = ac.createOscillator();
-      const g = ac.createGain();
+      const og = ac.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(320, t);
-      osc.frequency.linearRampToValueAtTime(540, t + 0.13);
-      g.gain.setValueAtTime(vol * 0.22, t);
-      g.gain.linearRampToValueAtTime(0, t + 0.22);
-      osc.connect(g); g.connect(ac.destination);
-      osc.start(t); osc.stop(t + 0.24);
+      osc.frequency.setValueAtTime(1100, t + 0.004);
+      osc.frequency.exponentialRampToValueAtTime(1600, t + 0.07);
+      og.gain.setValueAtTime(vol * 0.14, t + 0.004);
+      og.gain.linearRampToValueAtTime(0, t + 0.10);
+      osc.connect(og); og.connect(ac.destination);
+      osc.start(t + 0.004); osc.stop(t + 0.11);
     }, 'ui');
   }
 
-  // ── PANEL CLOSE ──
+  // ── PANEL CLOSE: lower dull thud ──
   function panelClose(){
     play((ac, vol) => {
       const t = ac.currentTime;
+      // Dull low thump
+      const thumpBuf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.06), ac.sampleRate);
+      const td = thumpBuf.getChannelData(0);
+      for(let i = 0; i < td.length; i++){
+        td[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.018));
+      }
+      const tsrc = ac.createBufferSource();
+      tsrc.buffer = thumpBuf;
+      const lp2 = ac.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 320;
+      const tg = ac.createGain(); tg.gain.setValueAtTime(vol * 0.50, t);
+      tsrc.connect(lp2); lp2.connect(tg); tg.connect(ac.destination);
+      tsrc.start(t);
+      // Low descending tone
       const osc = ac.createOscillator();
-      const g = ac.createGain();
+      const og = ac.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(500, t);
-      osc.frequency.linearRampToValueAtTime(260, t + 0.13);
-      g.gain.setValueAtTime(vol * 0.20, t);
-      g.gain.linearRampToValueAtTime(0, t + 0.20);
-      osc.connect(g); g.connect(ac.destination);
-      osc.start(t); osc.stop(t + 0.22);
+      osc.frequency.setValueAtTime(520, t + 0.005);
+      osc.frequency.exponentialRampToValueAtTime(280, t + 0.09);
+      og.gain.setValueAtTime(vol * 0.13, t + 0.005);
+      og.gain.linearRampToValueAtTime(0, t + 0.12);
+      osc.connect(og); og.connect(ac.destination);
+      osc.start(t + 0.005); osc.stop(t + 0.13);
     }, 'ui');
   }
 
-  // ── BUTTON CLICK ──
+  // ── BUTTON CLICK: plain neutral click (for in-panel buttons) ──
   function buttonClick(){
     play((ac, vol) => {
       const t = ac.currentTime;
-      const osc = ac.createOscillator();
-      const g = ac.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(420, t);
-      osc.frequency.linearRampToValueAtTime(360, t + 0.06);
-      g.gain.setValueAtTime(vol * 0.12, t);
-      g.gain.linearRampToValueAtTime(0, t + 0.09);
-      osc.connect(g); g.connect(ac.destination);
-      osc.start(t); osc.stop(t + 0.1);
+      const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.012), ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i = 0; i < d.length; i++){
+        d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.003));
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const hp3 = ac.createBiquadFilter(); hp3.type = 'highpass'; hp3.frequency.value = 2200;
+      const g = ac.createGain(); g.gain.setValueAtTime(vol * 0.30, t);
+      src.connect(hp3); hp3.connect(g); g.connect(ac.destination);
+      src.start(t);
     }, 'ui');
   }
 
@@ -2089,10 +2158,32 @@ function drawHUD() {
     '#fff16a'
   );
 
-  // SOUND BUTTON (bottom-right of stats panel)
-  const soundBtnColor = SFX.settings.mute ? '#ff4757' : '#6c5ce7';
-  const soundLabel = SFX.settings.mute ? '🔇 Sound' : '🔊 Sound';
-  addButton(300, 126, 160, 28, soundLabel, () => { SFX.panelOpen(); game.panel = 'sound'; }, soundBtnColor).draw(soundBtnColor);
+  // SOUND BUTTON — small gear icon, gray, bottom-right of stats panel
+  const gearBtnX = 430, gearBtnY = 120, gearBtnS = 36;
+  const gearColor = SFX.settings.mute ? 'rgba(255,71,87,.75)' : 'rgba(80,80,90,.82)';
+  roundRect(gearBtnX, gearBtnY, gearBtnS, gearBtnS, 8, gearColor, 'rgba(255,255,255,.18)', 1.5);
+  // draw gear icon on canvas
+  ctx.save();
+  ctx.translate(gearBtnX + gearBtnS/2, gearBtnY + gearBtnS/2);
+  ctx.fillStyle = SFX.settings.mute ? '#ff9999' : '#cccccc';
+  const teeth = 8, outerR = 9, innerR = 6, toothW = 0.28;
+  ctx.beginPath();
+  for(let i = 0; i < teeth; i++){
+    const a0 = (i / teeth) * Math.PI * 2 - toothW;
+    const a1 = (i / teeth) * Math.PI * 2 + toothW;
+    const a2 = ((i + 0.5) / teeth) * Math.PI * 2 - toothW * 0.5;
+    const a3 = ((i + 0.5) / teeth) * Math.PI * 2 + toothW * 0.5;
+    if(i === 0) ctx.moveTo(Math.cos(a0)*outerR, Math.sin(a0)*outerR);
+    else ctx.lineTo(Math.cos(a0)*outerR, Math.sin(a0)*outerR);
+    ctx.lineTo(Math.cos(a1)*outerR, Math.sin(a1)*outerR);
+    ctx.lineTo(Math.cos(a2)*innerR, Math.sin(a2)*innerR);
+    ctx.lineTo(Math.cos(a3)*innerR, Math.sin(a3)*innerR);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2);
+  ctx.fillStyle = gearColor; ctx.fill();
+  ctx.restore();
+  addButton(gearBtnX, gearBtnY, gearBtnS, gearBtnS, '', () => { SFX.panelOpen(); game.panel = 'sound'; }, 'transparent');
 
 
   // =====================================================
@@ -2703,34 +2794,38 @@ function drawSoundPanel(){
   const s = SFX.settings;
   const cx = W/2;
 
-  text('Adjust volume and toggle individual sound categories.', cx, 192, 19, 'center', '#9effff');
+  // ── subtitle ──
+  text('Volume & sound category settings', cx, 188, 20, 'center', '#9effff');
 
-  // ── MASTER VOLUME SLIDER ──
-  const sliderX = 340, sliderY = 255, sliderW = 830, sliderH = 12;
-  roundRect(sliderX - 20, 230, sliderW + 60, 60, 14, 'rgba(255,255,255,.08)', 'rgba(255,255,255,.18)', 1.5);
-  text('Master Volume', sliderX, 258, 22, 'left', '#dfe6e9');
+  // ── MASTER VOLUME SECTION ──
+  const cardX = 270, cardW = 960;
+  roundRect(cardX, 210, cardW, 86, 16, 'rgba(255,255,255,.07)', 'rgba(255,255,255,.16)', 1.5);
+
+  text('Master Volume', cardX + 24, 237, 21, 'left', '#dfe6e9');
   const volPct = Math.round(s.masterVolume * 100);
-  text(`${volPct}%`, sliderX + sliderW + 14, 258, 20, 'left', '#fff16a');
+  text(`${volPct}%`, cardX + cardW - 20, 237, 20, 'right', '#fff16a');
 
-  // track
-  roundRect(sliderX, sliderY, sliderW, sliderH, 6, 'rgba(255,255,255,.12)', 'rgba(255,255,255,.22)', 1);
-  // fill
-  roundRect(sliderX, sliderY, sliderW * s.masterVolume, sliderH, 6, '#6c5ce7');
+  // slider track
+  const sliderX = cardX + 24;
+  const sliderY = 264;
+  const sliderW = cardW - 48;
+  const sliderH = 10;
+  roundRect(sliderX, sliderY, sliderW, sliderH, 5, 'rgba(255,255,255,.12)', 'rgba(255,255,255,.22)', 1);
+  // filled portion
+  if(s.masterVolume > 0){
+    roundRect(sliderX, sliderY, sliderW * s.masterVolume, sliderH, 5, '#6c5ce7');
+  }
   // thumb
   const thumbX = sliderX + sliderW * s.masterVolume;
   ctx.beginPath();
-  ctx.arc(thumbX, sliderY + sliderH/2, 10, 0, Math.PI*2);
-  ctx.fillStyle = '#a29bfe';
-  ctx.fill();
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  ctx.arc(thumbX, sliderY + sliderH/2, 11, 0, Math.PI*2);
+  ctx.fillStyle = '#a29bfe'; ctx.fill();
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
 
-  // invisible hit area for slider dragging (handled via canvas mousedown/mousemove)
-  // We register it as a special wide button that updates volume on click
-  addButton(sliderX - 10, sliderY - 12, sliderW + 20, sliderH + 24, '',
+  // slider hit region stored for drag logic
+  game._soundSlider = { x: sliderX, y: sliderY - 14, w: sliderW, h: sliderH + 28, sliderX, sliderW };
+  addButton(sliderX, sliderY - 14, sliderW, sliderH + 28, '',
     (evt) => {
-      // evt is a MouseEvent passed via our patched handler
       if(evt && evt._sliderX !== undefined){
         const ratio = clamp((evt._sliderX - sliderX) / sliderW, 0, 1);
         SFX.settings.masterVolume = ratio;
@@ -2741,32 +2836,37 @@ function drawSoundPanel(){
 
   // ── MUTE TOGGLES ──
   const toggles = [
-    { key:'mute',         label:'Mute All',          color:'#ff4757' },
-    { key:'muteUI',       label:'Mute UI Sounds',    color:'#fd79a8' },
-    { key:'muteFishing',  label:'Mute Fishing',      color:'#0984e3' },
-    { key:'muteQuests',   label:'Mute Quests',       color:'#00b894' },
+    { key:'mute',         label:'Mute All',       color:'#ff4757' },
+    { key:'muteUI',       label:'Mute UI Sounds', color:'#fd79a8' },
+    { key:'muteFishing',  label:'Mute Fishing',   color:'#0984e3' },
+    { key:'muteQuests',   label:'Mute Quests',    color:'#00b894' },
   ];
 
+  const tCols = 2;
+  const tGap  = 16;
+  const tW    = (cardW - tGap * (tCols + 1)) / tCols;
+  const tH    = 56;
+  const tStartX = cardX + tGap;
+  const tStartY = 318;
+
   toggles.forEach((t, i) => {
-    const row = Math.floor(i / 2);
-    const col = i % 2;
-    const bx = 340 + col * 430;
-    const by = 320 + row * 80;
-    const bw = 380, bh = 52;
-    const on = s[t.key];
-    const fill = on ? t.color : 'rgba(255,255,255,.08)';
-    const border = on ? t.color : 'rgba(255,255,255,.22)';
-    roundRect(bx, by, bw, bh, 14, fill, border, 2);
+    const col = i % tCols;
+    const row = Math.floor(i / tCols);
+    const bx  = tStartX + col * (tW + tGap);
+    const by  = tStartY + row * (tH + tGap);
+    const on  = s[t.key];
+    const fill   = on ? t.color : 'rgba(255,255,255,.07)';
+    const border = on ? t.color : 'rgba(255,255,255,.20)';
+    roundRect(bx, by, tW, tH, 12, fill, border, 2);
     const icon = on ? '✓ ' : '○ ';
-    text(icon + t.label, bx + bw/2, by + bh/2, 22, 'center', on ? '#fff' : '#aaa');
-    addButton(bx, by, bw, bh, '',
+    text(icon + t.label, bx + tW/2, by + tH/2, 20, 'center', on ? '#fff' : '#aaa');
+    addButton(bx, by, tW, tH, '',
       () => { SFX.settings[t.key] = !SFX.settings[t.key]; SFX.buttonClick(); save(); },
       'transparent'
     );
   });
 
-  // volume label hint
-  text('Click on the slider bar to set volume', cx, 488, 16, 'center', '#636e72');
+  text('Drag the slider to adjust master volume', cx, 474, 15, 'center', '#555');
 }
 
 function drawEffects(){ for(const p of game.particles){ ctx.globalAlpha=clamp(p.life/40,0,1); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; } for(const m of game.messages){ ctx.globalAlpha=clamp(m.life/45,0,1); text(m.text,m.x,m.y,24,'center',m.color); ctx.globalAlpha=1; } }
@@ -2801,8 +2901,58 @@ function draw(ts){
 function loop(t){ const dt=Math.min(33,t-game.last||16); game.last=t; update(dt); draw(t); requestAnimationFrame(loop); }
 
 function mousePos(e){ const r=canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}; }
-canvas.addEventListener('mousemove',e=>{ const p=mousePos(e); game.mouseX=p.x; game.mouseY=p.y; if(harpoon.status==='still') harpoon.x=clamp(game.mouseX,210,W-210); });
-canvas.addEventListener('click',e=>{ const p=mousePos(e); for(let i=buttons.length-1;i>=0;i--){ if(buttons[i].hit(p.x,p.y)){ SFX.buttonClick(); buttons[i].fn({_sliderX: p.x, _sliderY: p.y}); return; } } launch(); });
+
+// ── SLIDER DRAG STATE ──
+let _sliderDragging = false;
+
+canvas.addEventListener('mousedown', e => {
+  const p = mousePos(e);
+  // check if clicking the sound slider
+  if(game.panel === 'sound' && game._soundSlider){
+    const sl = game._soundSlider;
+    if(p.x >= sl.x && p.x <= sl.x + sl.w && p.y >= sl.y && p.y <= sl.y + sl.h){
+      _sliderDragging = true;
+      const ratio = clamp((p.x - sl.sliderX) / sl.sliderW, 0, 1);
+      SFX.settings.masterVolume = ratio;
+      save();
+      e.stopPropagation();
+      return;
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  const p = mousePos(e);
+  game.mouseX = p.x; game.mouseY = p.y;
+  if(harpoon.status === 'still') harpoon.x = clamp(game.mouseX, 210, W-210);
+  // drag slider
+  if(_sliderDragging && game.panel === 'sound' && game._soundSlider){
+    const sl = game._soundSlider;
+    const ratio = clamp((p.x - sl.sliderX) / sl.sliderW, 0, 1);
+    SFX.settings.masterVolume = ratio;
+    save();
+  }
+});
+
+window.addEventListener('mouseup', () => { _sliderDragging = false; });
+
+canvas.addEventListener('click', e => {
+  if(_sliderDragging) return;
+  const p = mousePos(e);
+  // skip slider area to avoid double-fire
+  if(game.panel === 'sound' && game._soundSlider){
+    const sl = game._soundSlider;
+    if(p.x >= sl.x && p.x <= sl.x + sl.w && p.y >= sl.y && p.y <= sl.y + sl.h) return;
+  }
+  for(let i=buttons.length-1;i>=0;i--){
+    if(buttons[i].hit(p.x,p.y)){
+      SFX.buttonClick();
+      buttons[i].fn({_sliderX: p.x, _sliderY: p.y});
+      return;
+    }
+  }
+  launch();
+});
 canvas.addEventListener('wheel', e=>{
   if(game.panel !== 'maps' && game.panel !== 'collection') return;
 
