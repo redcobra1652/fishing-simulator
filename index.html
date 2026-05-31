@@ -41,6 +41,206 @@
   </div>
 
 <script>
+// =====================================================
+// SOUND ENGINE (Web Audio API — no external files)
+// =====================================================
+const SFX = (() => {
+  let ctx_a = null;
+  function getCtx(){
+    if(!ctx_a) ctx_a = new (window.AudioContext || window.webkitAudioContext)();
+    return ctx_a;
+  }
+
+  // settings stored on the sfx object, loaded/saved with game
+  const settings = {
+    masterVolume: 0.7,
+    mute: false,
+    muteUI: false,
+    muteFishing: false,
+    muteQuests: false
+  };
+
+  // active reel oscillator (so we can stop it)
+  let reelNode = null;
+
+  function play(fn, category='fishing'){
+    if(settings.mute) return;
+    if(category==='ui' && settings.muteUI) return;
+    if(category==='fishing' && settings.muteFishing) return;
+    if(category==='quest' && settings.muteQuests) return;
+    try {
+      const ac = getCtx();
+      if(ac.state === 'suspended') ac.resume();
+      fn(ac, settings.masterVolume);
+    } catch(e){}
+  }
+
+  // ── REEL (continuous while harpoon travels) ──
+  function startReel(){
+    if(settings.mute || settings.muteFishing) return;
+    try {
+      const ac = getCtx();
+      if(ac.state === 'suspended') ac.resume();
+      stopReel();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      // Mechanical whirring sound
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(90, ac.currentTime);
+      osc.frequency.linearRampToValueAtTime(160, ac.currentTime + 0.6);
+      gain.gain.setValueAtTime(settings.masterVolume * 0.09, ac.currentTime);
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      osc.start();
+      reelNode = { osc, gain };
+    } catch(e){}
+  }
+
+  function stopReel(){
+    try {
+      if(reelNode){
+        reelNode.gain.gain.linearRampToValueAtTime(0, reelNode.gain.context.currentTime + 0.07);
+        setTimeout(()=>{ try{ reelNode.osc.stop(); }catch(e){} reelNode=null; }, 90);
+      }
+    } catch(e){ reelNode=null; }
+  }
+
+  // ── FISH CAUGHT ──
+  function fishCaught(rare=1){
+    play((ac, vol) => {
+      const t = ac.currentTime;
+      // Satisfying "thwack + rising ding"
+      const buf = ac.createBuffer(1, ac.sampleRate * 0.18, ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for(let i=0;i<data.length;i++){
+        const env = Math.exp(-i / (ac.sampleRate * 0.06));
+        data[i] = (Math.random()*2-1) * env * 0.8;
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(vol * 0.55, t);
+      src.connect(g); g.connect(ac.destination); src.start(t);
+
+      // Rising ping for rarer fish
+      const osc = ac.createOscillator();
+      const og = ac.createGain();
+      const baseFreq = 520 + rare * 80;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq, t + 0.04);
+      osc.frequency.linearRampToValueAtTime(baseFreq * 1.55, t + 0.22);
+      og.gain.setValueAtTime(vol * 0.28, t + 0.04);
+      og.gain.linearRampToValueAtTime(0, t + 0.34);
+      osc.connect(og); og.connect(ac.destination);
+      osc.start(t + 0.04); osc.stop(t + 0.35);
+    }, 'fishing');
+  }
+
+  // ── QUEST COMPLETE ──
+  function questDone(){
+    play((ac, vol) => {
+      const t = ac.currentTime;
+      // Fanfare: rising chord arpeggio
+      const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+      notes.forEach((freq, i) => {
+        const osc = ac.createOscillator();
+        const g = ac.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t + i * 0.09);
+        g.gain.setValueAtTime(0, t + i * 0.09);
+        g.gain.linearRampToValueAtTime(vol * 0.22, t + i * 0.09 + 0.04);
+        g.gain.linearRampToValueAtTime(0, t + i * 0.09 + 0.32);
+        osc.connect(g); g.connect(ac.destination);
+        osc.start(t + i * 0.09); osc.stop(t + i * 0.09 + 0.35);
+      });
+    }, 'quest');
+  }
+
+  // ── SELL / COINS ──
+  function coins(){
+    play((ac, vol) => {
+      const t = ac.currentTime;
+      const freqs = [880, 1108, 1320];
+      freqs.forEach((f, i) => {
+        const osc = ac.createOscillator();
+        const g = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = f;
+        g.gain.setValueAtTime(vol * 0.18, t + i * 0.06);
+        g.gain.linearRampToValueAtTime(0, t + i * 0.06 + 0.18);
+        osc.connect(g); g.connect(ac.destination);
+        osc.start(t + i * 0.06); osc.stop(t + i * 0.06 + 0.2);
+      });
+    }, 'ui');
+  }
+
+  // ── PANEL OPEN ──
+  function panelOpen(){
+    play((ac, vol) => {
+      const t = ac.currentTime;
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, t);
+      osc.frequency.linearRampToValueAtTime(540, t + 0.13);
+      g.gain.setValueAtTime(vol * 0.22, t);
+      g.gain.linearRampToValueAtTime(0, t + 0.22);
+      osc.connect(g); g.connect(ac.destination);
+      osc.start(t); osc.stop(t + 0.24);
+    }, 'ui');
+  }
+
+  // ── PANEL CLOSE ──
+  function panelClose(){
+    play((ac, vol) => {
+      const t = ac.currentTime;
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(500, t);
+      osc.frequency.linearRampToValueAtTime(260, t + 0.13);
+      g.gain.setValueAtTime(vol * 0.20, t);
+      g.gain.linearRampToValueAtTime(0, t + 0.20);
+      osc.connect(g); g.connect(ac.destination);
+      osc.start(t); osc.stop(t + 0.22);
+    }, 'ui');
+  }
+
+  // ── BUTTON CLICK ──
+  function buttonClick(){
+    play((ac, vol) => {
+      const t = ac.currentTime;
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(420, t);
+      osc.frequency.linearRampToValueAtTime(360, t + 0.06);
+      g.gain.setValueAtTime(vol * 0.12, t);
+      g.gain.linearRampToValueAtTime(0, t + 0.09);
+      osc.connect(g); g.connect(ac.destination);
+      osc.start(t); osc.stop(t + 0.1);
+    }, 'ui');
+  }
+
+  // ── ERROR / CANT AFFORD ──
+  function error(){
+    play((ac, vol) => {
+      const t = ac.currentTime;
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(200, t);
+      osc.frequency.linearRampToValueAtTime(140, t + 0.12);
+      g.gain.setValueAtTime(vol * 0.14, t);
+      g.gain.linearRampToValueAtTime(0, t + 0.15);
+      osc.connect(g); g.connect(ac.destination);
+      osc.start(t); osc.stop(t + 0.16);
+    }, 'ui');
+  }
+
+  return { settings, startReel, stopReel, fishCaught, questDone, coins, panelOpen, panelClose, buttonClick, error };
+})();
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = 1510, H = 850;
@@ -246,17 +446,25 @@ const game = {
     active: false,
     step: 0
   },
-  messages:[], particles:[], fish:[], chests:[], collectionScroll: 0
+  messages:[], particles:[], fish:[], chests:[], collectionScroll: 0,
+  soundSettings: {
+    masterVolume: 0.7,
+    mute: false,
+    muteUI: false,
+    muteFishing: false,
+    muteQuests: false
+  }
 };
 
 function save(){
   try {
-    localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked})); 
+    game.soundSettings = {...SFX.settings};
+    localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked,soundSettings:game.soundSettings})); 
   } catch (e) {
     console.warn("Save failed: Storage might be full or private.");
   }
 }
-function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); }catch(e){} }
 function reset(){ localStorage.removeItem('fishingEmpireSave'); location.reload(); }
 function currentMap(){ return maps.find(m=>m.id===game.map); }
 function currentRod(){ return rods.find(r=>r.id===game.rod); }
@@ -1314,6 +1522,7 @@ function launch(){
   harpoon.status='out';
   harpoon.tipX=harpoon.x;
   harpoon.tipY = 170;
+  SFX.startReel();
 }
 function updateHarpoon(dt){
   if (!harpoon) return;
@@ -1356,7 +1565,9 @@ function updateHarpoon(dt){
           break;
         }
         harpoon.fish=fish; fish.caught=true; harpoon.status='back'; game.shake=8;
-        harpoon.tipY=centerY; burst(harpoon.tipX,harpoon.tipY,fish.type.body,18); break;
+        harpoon.tipY=centerY; burst(harpoon.tipX,harpoon.tipY,fish.type.body,18);
+        SFX.stopReel(); SFX.fishCaught(fish.type.id);
+        break;
       }
     }
   }
@@ -1365,6 +1576,7 @@ function updateHarpoon(dt){
   if(harpoon.status==='back' && harpoon.tipY<=sy){
     if(harpoon.fish) catchFish(harpoon.fish);
     if(harpoon.chest) catchChest(harpoon.chest);
+    SFX.stopReel();
     harpoon.status='still'; harpoon.fish=null; harpoon.chest=null; harpoon.chest=null; harpoon.tipY=sy;
   }
 }
@@ -1374,6 +1586,7 @@ function catchFish(fish){
   if(fish.type.id>=4) game.gems += (fish.type.id-3)/2;
   msg(`+${fmt(earned)} coins`, fish.x+fish.w/2, fish.y, '#fff16a');
   if(fish.type.id>=5) msg(`+${fish.type.id-4} gem`, fish.x+fish.w/2, fish.y-30, '#9effff');
+  SFX.coins();
   game.fish.splice(game.fish.indexOf(fish),1); game.fish.push(new Fish());
   checkQuests(fish); save();
 }
@@ -1415,6 +1628,7 @@ function checkQuests(fish){
         game.coins+=q.reward;
         msg(`QUEST DONE +${fmt(q.reward)}`, W/2, 120, '#7bed9f');
       }
+      SFX.questDone();
     }
   }
   save();
@@ -1875,6 +2089,11 @@ function drawHUD() {
     '#fff16a'
   );
 
+  // SOUND BUTTON (bottom-right of stats panel)
+  const soundBtnColor = SFX.settings.mute ? '#ff4757' : '#6c5ce7';
+  const soundLabel = SFX.settings.mute ? '🔇 Sound' : '🔊 Sound';
+  addButton(300, 126, 160, 28, soundLabel, () => { SFX.panelOpen(); game.panel = 'sound'; }, soundBtnColor).draw(soundBtnColor);
+
 
   // =====================================================
   // RIGHT PANEL (narrower)
@@ -1968,9 +2187,9 @@ function drawHUD() {
       ? `rgba(255,241,106,${pulse})`
       : '#e17055';
 
-  addButton(x0 + (btnW + gap) * 0, y1, btnW, btnH, 'Shop',  () => game.panel='shop', shopColor).draw(shopColor);
-  addButton(x0 + (btnW + gap) * 1, y1, btnW, btnH, 'Maps',  () => game.panel='maps', mapsColor).draw(mapsColor);
-  addButton(x0 + (btnW + gap) * 2, y1, btnW, btnH, 'Quest', () => game.panel='quests',questColor).draw(questColor);
+  addButton(x0 + (btnW + gap) * 0, y1, btnW, btnH, 'Shop',  () => { SFX.panelOpen(); game.panel='shop'; }, shopColor).draw(shopColor);
+  addButton(x0 + (btnW + gap) * 1, y1, btnW, btnH, 'Maps',  () => { SFX.panelOpen(); game.panel='maps'; }, mapsColor).draw(mapsColor);
+  addButton(x0 + (btnW + gap) * 2, y1, btnW, btnH, 'Quest', () => { SFX.panelOpen(); game.panel='quests'; },questColor).draw(questColor);
 
 
   // Row 2 (3 equal buttons)
@@ -1985,7 +2204,7 @@ function drawHUD() {
     btnW2,
     btnH,
     'Bait',
-    () => game.panel = 'bait',
+    () => { SFX.panelOpen(); game.panel = 'bait'; },
     '#a29bfe'
   ).draw('#a29bfe');
 
@@ -1995,7 +2214,7 @@ function drawHUD() {
     btnW2,
     btnH,
     'Gear',
-    () => game.panel = 'rods',
+    () => { SFX.panelOpen(); game.panel = 'rods'; },
     rodsColor
   ).draw(rodsColor);
 
@@ -2005,7 +2224,7 @@ function drawHUD() {
     btnW2+20,
     btnH,
     'Catches',
-    () => game.panel = 'collection',
+    () => { SFX.panelOpen(); game.panel = 'collection'; },
     catchesColor
   ).draw(catchesColor);
 }
@@ -2047,10 +2266,10 @@ function drawTutorial(){
     ctx.fill();
   }
 }
-function drawPanel(){ if(!game.panel) return; ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,W,H); roundRect(175,95,1160,670,30,'#102a43','rgba(255,255,255,.55)',5); addButton(1250,120,58,58,'X',()=>game.panel=null,'#ff4757').draw('#ff4757'); text(game.panel.toUpperCase(),W/2,145,48,'center');
-  if(game.panel==='shop') drawShopPanel(); if(game.panel==='maps') drawMapsPanel(); if(game.panel==='rods') drawRodsPanel(); if(game.panel==='bait') drawBaitPanel(); if(game.panel==='quests') drawQuestsPanel(); if(game.panel==='collection') drawCollectionPanel();}
-function buy(cost,fn){ if(game.coins>=cost){ game.coins-=cost; fn(); save(); return true; } msg('Not enough coins',W/2,100,'#ff7675'); return false; }
-function buyGems(cost,fn){ if(game.gems>=cost){ game.gems-=cost; fn(); save(); return true; } msg('Not enough gems',W/2,100,'#9effff'); return false; }
+function drawPanel(){ if(!game.panel) return; ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,W,H); roundRect(175,95,1160,670,30,'#102a43','rgba(255,255,255,.55)',5); addButton(1250,120,58,58,'X',()=>{ SFX.panelClose(); game.panel=null; },'#ff4757').draw('#ff4757'); text(game.panel.toUpperCase(),W/2,145,48,'center');
+  if(game.panel==='shop') drawShopPanel(); if(game.panel==='maps') drawMapsPanel(); if(game.panel==='rods') drawRodsPanel(); if(game.panel==='bait') drawBaitPanel(); if(game.panel==='quests') drawQuestsPanel(); if(game.panel==='collection') drawCollectionPanel(); if(game.panel==='sound') drawSoundPanel();}
+function buy(cost,fn){ if(game.coins>=cost){ game.coins-=cost; fn(); SFX.coins(); save(); return true; } SFX.error(); msg('Not enough coins',W/2,100,'#ff7675'); return false; }
+function buyGems(cost,fn){ if(game.gems>=cost){ game.gems-=cost; fn(); SFX.coins(); save(); return true; } SFX.error(); msg('Not enough gems',W/2,100,'#9effff'); return false; }
 function upgradeGemCost(lvl,max){ return Math.ceil(1 + lvl * (9 / Math.max(1, max - 1))); }
 function drawShopPanel(){
   text('Shop upgrades use gems! Get gems by catching rare fish that have labels!', W/2, 188, 19, 'center', '#9effff');
@@ -2480,6 +2699,76 @@ function drawCollectionPanel(){
   }
 }
 
+function drawSoundPanel(){
+  const s = SFX.settings;
+  const cx = W/2;
+
+  text('Adjust volume and toggle individual sound categories.', cx, 192, 19, 'center', '#9effff');
+
+  // ── MASTER VOLUME SLIDER ──
+  const sliderX = 340, sliderY = 255, sliderW = 830, sliderH = 12;
+  roundRect(sliderX - 20, 230, sliderW + 60, 60, 14, 'rgba(255,255,255,.08)', 'rgba(255,255,255,.18)', 1.5);
+  text('Master Volume', sliderX, 258, 22, 'left', '#dfe6e9');
+  const volPct = Math.round(s.masterVolume * 100);
+  text(`${volPct}%`, sliderX + sliderW + 14, 258, 20, 'left', '#fff16a');
+
+  // track
+  roundRect(sliderX, sliderY, sliderW, sliderH, 6, 'rgba(255,255,255,.12)', 'rgba(255,255,255,.22)', 1);
+  // fill
+  roundRect(sliderX, sliderY, sliderW * s.masterVolume, sliderH, 6, '#6c5ce7');
+  // thumb
+  const thumbX = sliderX + sliderW * s.masterVolume;
+  ctx.beginPath();
+  ctx.arc(thumbX, sliderY + sliderH/2, 10, 0, Math.PI*2);
+  ctx.fillStyle = '#a29bfe';
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // invisible hit area for slider dragging (handled via canvas mousedown/mousemove)
+  // We register it as a special wide button that updates volume on click
+  addButton(sliderX - 10, sliderY - 12, sliderW + 20, sliderH + 24, '',
+    (evt) => {
+      // evt is a MouseEvent passed via our patched handler
+      if(evt && evt._sliderX !== undefined){
+        const ratio = clamp((evt._sliderX - sliderX) / sliderW, 0, 1);
+        SFX.settings.masterVolume = ratio;
+        save();
+      }
+    }, 'transparent'
+  );
+
+  // ── MUTE TOGGLES ──
+  const toggles = [
+    { key:'mute',         label:'Mute All',          color:'#ff4757' },
+    { key:'muteUI',       label:'Mute UI Sounds',    color:'#fd79a8' },
+    { key:'muteFishing',  label:'Mute Fishing',      color:'#0984e3' },
+    { key:'muteQuests',   label:'Mute Quests',       color:'#00b894' },
+  ];
+
+  toggles.forEach((t, i) => {
+    const row = Math.floor(i / 2);
+    const col = i % 2;
+    const bx = 340 + col * 430;
+    const by = 320 + row * 80;
+    const bw = 380, bh = 52;
+    const on = s[t.key];
+    const fill = on ? t.color : 'rgba(255,255,255,.08)';
+    const border = on ? t.color : 'rgba(255,255,255,.22)';
+    roundRect(bx, by, bw, bh, 14, fill, border, 2);
+    const icon = on ? '✓ ' : '○ ';
+    text(icon + t.label, bx + bw/2, by + bh/2, 22, 'center', on ? '#fff' : '#aaa');
+    addButton(bx, by, bw, bh, '',
+      () => { SFX.settings[t.key] = !SFX.settings[t.key]; SFX.buttonClick(); save(); },
+      'transparent'
+    );
+  });
+
+  // volume label hint
+  text('Click on the slider bar to set volume', cx, 488, 16, 'center', '#636e72');
+}
+
 function drawEffects(){ for(const p of game.particles){ ctx.globalAlpha=clamp(p.life/40,0,1); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; } for(const m of game.messages){ ctx.globalAlpha=clamp(m.life/45,0,1); text(m.text,m.x,m.y,24,'center',m.color); ctx.globalAlpha=1; } }
 function update(dt){ for(const f of game.fish) f.move(dt); for(const c of game.chests) c.move(dt); updateHarpoon(dt); updateEffects(dt); updateTransition(dt); updateTutorial(); }
 function draw(ts){
@@ -2513,7 +2802,7 @@ function loop(t){ const dt=Math.min(33,t-game.last||16); game.last=t; update(dt)
 
 function mousePos(e){ const r=canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}; }
 canvas.addEventListener('mousemove',e=>{ const p=mousePos(e); game.mouseX=p.x; game.mouseY=p.y; if(harpoon.status==='still') harpoon.x=clamp(game.mouseX,210,W-210); });
-canvas.addEventListener('click',e=>{ const p=mousePos(e); for(let i=buttons.length-1;i>=0;i--){ if(buttons[i].hit(p.x,p.y)){ buttons[i].fn(); return; } } launch(); });
+canvas.addEventListener('click',e=>{ const p=mousePos(e); for(let i=buttons.length-1;i>=0;i--){ if(buttons[i].hit(p.x,p.y)){ SFX.buttonClick(); buttons[i].fn({_sliderX: p.x, _sliderY: p.y}); return; } } launch(); });
 canvas.addEventListener('wheel', e=>{
   if(game.panel !== 'maps' && game.panel !== 'collection') return;
 
@@ -2525,7 +2814,7 @@ canvas.addEventListener('wheel', e=>{
     game.collectionScroll = (game.collectionScroll || 0) + e.deltaY * 0.6;
   }
 });
-window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape') game.panel=null; if(e.key.toLowerCase()==='r') reset(); });
+window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape'){ if(game.panel){ SFX.panelClose(); } game.panel=null; } if(e.key.toLowerCase()==='r') reset(); });
 
 load(); // Enable tutorial ONLY for brand new players
 if(game.caught === 0){
