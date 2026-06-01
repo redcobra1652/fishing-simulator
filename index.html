@@ -505,9 +505,9 @@ const game = {
     { text:'Catch a rare fish', goal:1, type:'legend', reward:1000, done:false },
     { text:'Catch 100 fish', goal:100, type:'catches', reward:5000, done:false },
     { text:'Catch 1000 fish', goal:1000, type:'lotofcatches', reward:50000, done:false },
-    { text:'Catch a Frost Wyrm AND an Infernal Hydra', goal:1, type:'elemental_unlock', reward:0, done:false,
+    { text:'Catch a Frost Wyrm, Infernal Hydra, and Thunder Phantom', goal:1, type:'elemental_unlock', reward:0, done:false,
       desc:'Unlocks the Elemental Rod purchase (required for Galaxy Ocean)',
-      caughtWyrm:false, caughtHydra:false }
+      caughtWyrm:false, caughtHydra:false, caughtPhantom: false}
   ],
   elementalUnlocked: false,
   collection:{},
@@ -1686,6 +1686,7 @@ function checkQuests(fish){
     if(q.type==='elemental_unlock'){
       if(fish.type.name==='Frost Wyrm') q.caughtWyrm=true;
       if(fish.type.name==='Infernal Hydra') q.caughtHydra=true;
+      if(fish.type.name==='Thunder Phantom') q.caughtPhantom=true;
       if(q.caughtWyrm && q.caughtHydra) ok=true;
     }
     if(ok){
@@ -2541,7 +2542,7 @@ function drawRodsPanel(){
       // Show quest progress
       const wc = elemQ?.caughtWyrm  ? '✓':'✗';
       const hc = elemQ?.caughtHydra ? '✓':'✗';
-      text(`LOCKED — Quest: catch Frost Wyrm [${wc}] + Infernal Hydra [${hc}]`, 300, y+58, 17, 'left', '#c8a0ff');
+      text(`LOCKED — Complete the quest to unlock`, 300, y+58, 17, 'left', '#c8a0ff');
       // Greyed-out locked button
       addButton(1020,y+16,180,50,'🔒 Locked',()=>{ msg('Complete the quest to unlock the Elemental Rod!',W/2,200,'#c8a0ff'); },'#4a3060').draw('#4a3060');
     } else {
@@ -2578,7 +2579,8 @@ function drawQuestsPanel(){
     if(isElem && !q.done){
       const wc = q.caughtWyrm  ? '✓' : '✗';
       const hc = q.caughtHydra ? '✓' : '✗';
-      subText = `Frost Wyrm [${wc}]  •  Infernal Hydra [${hc}]  →  Unlocks Elemental Rod purchase`;
+      const tc = q.caughtPhantom ? '✓' : '✗';
+      subText = `Frost Wyrm[${wc}] • Infernal Hydra[${hc}] • Thunder Phantom[${tc}]`;
     } else if(isElem && q.done){
       subText = 'Completed! Elemental Rod is now available in Gear.';
     } else if(q.done){
