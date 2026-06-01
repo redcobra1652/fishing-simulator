@@ -1915,9 +1915,8 @@ function getHarpoonColors(){
 function drawHarpoon(){
   const sy = 160;
   const hc = getHarpoonColors();
-
-  // ── Rope from boat to harpoon anchor ──
   if(!game.transition?.active){
+    // ── Rope from boat to harpoon anchor ──
     ctx.save();
     ctx.strokeStyle = hc.line;
     ctx.lineWidth = 4;
@@ -1928,82 +1927,82 @@ function drawHarpoon(){
     ctx.lineTo(W/2, 160);
     ctx.stroke();
     ctx.restore();
-  }
 
-  // ── Line from anchor to tip ──
-  ctx.save();
-  if(hc.glow){ ctx.shadowColor=hc.glow; ctx.shadowBlur=8; }
-  ctx.strokeStyle = hc.line;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(harpoon.x, sy);
-  ctx.lineTo(harpoon.tipX, harpoon.tipY);
-  ctx.stroke();
-  ctx.restore();
-
-  // ── Harpoon body ──
-  ctx.save();
-  ctx.translate(harpoon.tipX, harpoon.tipY);
-
-  if(hc.glow){ ctx.shadowColor=hc.glow; ctx.shadowBlur=14; }
-
-  if(hc.shaft === 'elemental'){
-    // Top half = fire gradient
-    const fireGrad = ctx.createLinearGradient(-5,0,5,30);
-    fireGrad.addColorStop(0,'#ff6b00');
-    fireGrad.addColorStop(1,'#ff2200');
-    roundRect(-5,0,10,30,3,fireGrad,'#ff4400',1);
-
-    // Bottom half = ice gradient
-    const iceGrad = ctx.createLinearGradient(-5,30,5,60);
-    iceGrad.addColorStop(0,'#00aaff');
-    iceGrad.addColorStop(1,'#0044cc');
-    roundRect(-5,30,10,30,3,iceGrad,'#0088ff',1);
-
-    // Lightning bolt in the middle
-    const t = Date.now() * 0.006;
-    ctx.shadowColor = 'rgba(255,255,150,0.9)';
-    ctx.shadowBlur = 12;
-    ctx.strokeStyle = '#ffff80';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // ── Line from anchor to tip ──
+    ctx.save();
+    if(hc.glow){ ctx.shadowColor=hc.glow; ctx.shadowBlur=8; }
+    ctx.strokeStyle = hc.line;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo( 2, 22);
-    ctx.lineTo(-3, 30 + Math.sin(t)*1.5);
-    ctx.lineTo( 3, 30 + Math.sin(t)*1.5);
-    ctx.lineTo(-2, 38);
+    ctx.moveTo(harpoon.x, sy);
+    ctx.lineTo(harpoon.tipX, harpoon.tipY);
     ctx.stroke();
-    ctx.shadowBlur = 0;
-  } else {
-    roundRect(-5,0,10,60,4,hc.shaft,'#111',1);
-  }
+    ctx.restore();
 
-  // Arrowhead
-  ctx.fillStyle = hc.head;
-  ctx.shadowColor = hc.glow || 'rgba(0,0,0,0.3)';
-  ctx.shadowBlur = hc.glow ? 10 : 4;
-  ctx.beginPath();
-  ctx.moveTo(-13,58);
-  ctx.lineTo(0, 88);
-  ctx.lineTo(13,58);
-  ctx.closePath();
-  ctx.fill();
+    // ── Harpoon body ──
+    ctx.save();
+    ctx.translate(harpoon.tipX, harpoon.tipY);
 
-  ctx.restore();
+    if(hc.glow){ ctx.shadowColor=hc.glow; ctx.shadowBlur=14; }
 
-  // ── Aim guide dotted line ──
-  if(harpoon.status==='still'){
-    ctx.globalAlpha=.55;
-    ctx.strokeStyle='rgba(255,255,255,.75)';
-    ctx.lineWidth=3;
-    ctx.setLineDash([8,8]);
+    if(hc.shaft === 'elemental'){
+      // Top half = fire gradient
+      const fireGrad = ctx.createLinearGradient(-5,0,5,30);
+      fireGrad.addColorStop(0,'#ff6b00');
+      fireGrad.addColorStop(1,'#ff2200');
+      roundRect(-5,0,10,30,3,fireGrad,'#ff4400',1);
+
+      // Bottom half = ice gradient
+      const iceGrad = ctx.createLinearGradient(-5,30,5,60);
+      iceGrad.addColorStop(0,'#00aaff');
+      iceGrad.addColorStop(1,'#0044cc');
+      roundRect(-5,30,10,30,3,iceGrad,'#0088ff',1);
+
+      // Lightning bolt in the middle
+      const t = Date.now() * 0.006;
+      ctx.shadowColor = 'rgba(255,255,150,0.9)';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = '#ffff80';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo( 2, 22);
+      ctx.lineTo(-3, 30 + Math.sin(t)*1.5);
+      ctx.lineTo( 3, 30 + Math.sin(t)*1.5);
+      ctx.lineTo(-2, 38);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else {
+      roundRect(-5,0,10,60,4,hc.shaft,'#111',1);
+    }
+
+    // Arrowhead
+    ctx.fillStyle = hc.head;
+    ctx.shadowColor = hc.glow || 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = hc.glow ? 10 : 4;
     ctx.beginPath();
-    ctx.moveTo(harpoon.x,235);
-    ctx.lineTo(harpoon.x,H-40);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha=1;
+    ctx.moveTo(-13,58);
+    ctx.lineTo(0, 88);
+    ctx.lineTo(13,58);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+
+    // ── Aim guide dotted line ──
+    if(harpoon.status==='still'){
+      ctx.globalAlpha=.55;
+      ctx.strokeStyle='rgba(255,255,255,.75)';
+      ctx.lineWidth=3;
+      ctx.setLineDash([8,8]);
+      ctx.beginPath();
+      ctx.moveTo(harpoon.x,235);
+      ctx.lineTo(harpoon.x,H-40);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha=1;
+    }
   }
 }
 
