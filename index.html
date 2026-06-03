@@ -1651,7 +1651,11 @@ function updateHarpoon(dt){
 }
 function catchFish(fish){
   const map=currentMap(); const variantMult=fish.variant?fish.variant.mult:1; const potionMult=game.potions.coin>0?2:1; const base=fish.type.value*map.mult*variantMult*potionMult * (1 + (game.upgrades.magnet * 0.14)); game.combo = Math.min(2, game.combo+.125); game.comboTimer=2600;
-  const earned=Math.round(base*game.combo); game.coins += earned; game.score += earned; game.caught++; game.bestCatch=`${fish.variant?fish.variant.label+' ':''}${fish.type.name}`; game.collection[fish.type.name] = true;
+  const earned=Math.round(base*game.combo); game.coins += earned; game.score += earned; game.caught++; game.bestCatch=`${fish.variant?fish.variant.label+' ':''}${fish.type.name}`;
+  // Record collection entry with variant tracking (normalize old boolean saves)
+  if(!game.collection[fish.type.name] || game.collection[fish.type.name] === true) game.collection[fish.type.name] = { caught: true };
+  else game.collection[fish.type.name].caught = true;
+  if(fish.variant){ const entry = game.collection[fish.type.name]; if(!entry.variants) entry.variants = {}; entry.variants[fish.variant.id] = true; }
   if(fish.type.id>=4) game.gems += (fish.type.id-3)/2;
   msg(`+${fmt(earned)} coins`, fish.x+fish.w/2, fish.y, '#fff16a');
   if(fish.type.id>=5) msg(`+${fish.type.id-4} gem`, fish.x+fish.w/2, fish.y-30, '#9effff');
@@ -1862,10 +1866,290 @@ function spawnChests(){ game.chests=[]; const count=currentMap().id==='bay'?1:2;
 function drawBackground(dt){
   const map=currentMap(); game.wave += dt*.035;
   const sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,map.sky1); sky.addColorStop(.45,map.sky2); sky.addColorStop(1,map.depth); ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle=map.id==='lava'?'rgba(255,70,20,.9)':'rgba(255,240,150,.85)'; ctx.beginPath(); ctx.arc(1320,80,50,0,Math.PI*2); ctx.fill();
-  if(map.id==='ice'){ for(let i=0;i<8;i++){ ctx.fillStyle='rgba(255,255,255,.75)'; ctx.beginPath(); ctx.moveTo(80+i*180,215); ctx.lineTo(125+i*180,170); ctx.lineTo(170+i*180,215); ctx.fill(); } }
-  if(map.id==='reef'){ for(let i=0;i<12;i++){ ctx.fillStyle=i%2?'#ff7675':'#fd79a8'; ctx.beginPath(); ctx.arc(70+i*125,760,irand(12,28),0,Math.PI*2); ctx.fill(); } }
-  if(map.id==='lava'){ ctx.fillStyle='rgba(70,30,20,.8)'; ctx.beginPath(); ctx.moveTo(80,225); ctx.lineTo(230,70); ctx.lineTo(390,225); ctx.fill(); ctx.fillStyle='rgba(255,80,0,.8)'; ctx.beginPath(); ctx.moveTo(205,95); ctx.lineTo(230,68); ctx.lineTo(256,95); ctx.fill(); }
+
+  // SUN / MOON (floating, above waves)
+  if(map.id==='moon'||map.id==='void'||map.id==='galaxy'){
+    ctx.fillStyle='rgba(240,245,255,.92)'; ctx.beginPath(); ctx.arc(1320,80,52,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=map.sky1; ctx.beginPath(); ctx.arc(1338,68,42,0,Math.PI*2); ctx.fill();
+  } else if(map.id==='lava'){
+    ctx.fillStyle='rgba(255,70,20,.9)'; ctx.beginPath(); ctx.arc(1320,80,50,0,Math.PI*2); ctx.fill();
+  } else {
+    ctx.fillStyle='rgba(255,240,150,.85)'; ctx.beginPath(); ctx.arc(1320,80,50,0,Math.PI*2); ctx.fill();
+  }
+
+  // BAY: soft distant headlands — gentle, clean
+  if(map.id==='bay'){
+    // Distant far hills, very faded
+    ctx.fillStyle='rgba(80,150,100,.28)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,200); ctx.quadraticCurveTo(380,145,760,195); ctx.quadraticCurveTo(1100,235,1510,190); ctx.lineTo(1510,H); ctx.fill();
+    // Closer shore bluffs left and right
+    ctx.fillStyle='rgba(60,125,80,.48)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,195); ctx.quadraticCurveTo(130,168,280,192); ctx.quadraticCurveTo(370,208,440,190); ctx.lineTo(440,H); ctx.fill();
+    ctx.fillStyle='rgba(50,110,70,.42)';
+    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,198); ctx.quadraticCurveTo(1380,170,1230,198); ctx.quadraticCurveTo(1090,218,1000,192); ctx.lineTo(1000,H); ctx.fill();
+    // Lighthouse silhouette on left bluff
+    ctx.fillStyle='rgba(240,235,220,.82)';
+    ctx.fillRect(188,128,16,68); // tower
+    ctx.beginPath(); ctx.moveTo(184,128); ctx.lineTo(196,108); ctx.lineTo(208,128); ctx.fill(); // cap
+    ctx.fillStyle='rgba(255,220,80,.6)';
+    ctx.beginPath(); ctx.arc(196,120,7,0,Math.PI*2); ctx.fill(); // light glow
+  }
+
+  // REEF: layered underwater cliffs with coral beds at the horizon
+  if(map.id==='reef'){
+    // Deep underwater cliff wall — spans full width, goes to bottom
+    ctx.fillStyle='rgba(0,140,140,.45)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,215); ctx.quadraticCurveTo(380,185,760,210); ctx.quadraticCurveTo(1140,230,1510,205); ctx.lineTo(1510,H); ctx.fill();
+    // Second ridge, slightly lighter
+    ctx.fillStyle='rgba(0,160,150,.35)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,200); ctx.quadraticCurveTo(250,178,500,200); ctx.quadraticCurveTo(900,218,1200,195); ctx.lineTo(1510,200); ctx.lineTo(1510,H); ctx.fill();
+    // Fan corals — soft oval clusters at horizon line, spaced out
+    const fans=[{x:90,c:'#e84393',r:28},{x:260,c:'#ff7675',r:22},{x:450,c:'#fd79a8',r:30},{x:650,c:'#e84393',r:24},{x:830,c:'#ff7675',r:26},{x:1020,c:'#fd79a8',r:28},{x:1200,c:'#e84393',r:22},{x:1380,c:'#ff7675',r:26},{x:1490,c:'#fd79a8',r:20}];
+    for(const f of fans){
+      // stem
+      ctx.strokeStyle=f.c; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(f.x,215); ctx.lineTo(f.x,215-f.r*1.4); ctx.stroke();
+      // fan head — semi-circle
+      ctx.fillStyle=f.c+'bb';
+      ctx.beginPath(); ctx.arc(f.x,215-f.r*1.4,f.r,Math.PI,0); ctx.fill();
+      // inner detail lines
+      ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.lineWidth=1.5;
+      for(let a=0;a<5;a++){ const ang=Math.PI+a*(Math.PI/4); ctx.beginPath(); ctx.moveTo(f.x,215-f.r*1.4); ctx.lineTo(f.x+Math.cos(ang)*f.r,215-f.r*1.4+Math.sin(ang)*f.r); ctx.stroke(); }
+    }
+    // Scattered small bubble dots above coral line
+    ctx.fillStyle='rgba(255,255,255,.30)';
+    for(let i=0;i<14;i++){ ctx.beginPath(); ctx.arc(60+i*110,(170+i*9)%45+158,3+i%3,0,Math.PI*2); ctx.fill(); }
+  }
+
+  // DEEP: jagged abyssal rock formations rising from pitch dark
+  if(map.id==='deep'){
+    // Dark abyss base
+    ctx.fillStyle='rgba(5,12,40,.95)';
+    ctx.fillRect(0,195,W,H-195);
+    // Rock pillars — varied heights, organic silhouette
+    const pillars=[{x:60,w:55,h:65},{x:190,w:40,h:48},{x:320,w:70,h:80},{x:480,w:48,h:58},{x:650,w:62,h:72},{x:810,w:44,h:52},{x:970,w:68,h:78},{x:1130,w:50,h:62},{x:1290,w:58,h:68},{x:1420,w:45,h:55},{x:1490,w:35,h:42}];
+    for(const p of pillars){
+      ctx.fillStyle='rgba(12,22,60,.92)';
+      // Jagged top silhouette
+      ctx.beginPath();
+      ctx.moveTo(p.x-p.w/2,H);
+      ctx.lineTo(p.x-p.w/2,215-p.h+10);
+      ctx.lineTo(p.x-p.w*0.3,215-p.h-6);
+      ctx.lineTo(p.x-p.w*0.1,215-p.h+4);
+      ctx.lineTo(p.x,215-p.h-2);
+      ctx.lineTo(p.x+p.w*0.15,215-p.h+8);
+      ctx.lineTo(p.x+p.w*0.35,215-p.h-4);
+      ctx.lineTo(p.x+p.w/2,215-p.h+10);
+      ctx.lineTo(p.x+p.w/2,H);
+      ctx.fill();
+    }
+    // Bioluminescent glow dots at pillar tips
+    for(const p of pillars){
+      const gx=ctx.createRadialGradient(p.x,215-p.h,0,p.x,215-p.h,22);
+      gx.addColorStop(0,'rgba(80,160,255,.5)'); gx.addColorStop(1,'rgba(80,160,255,0)');
+      ctx.fillStyle=gx; ctx.beginPath(); ctx.arc(p.x,215-p.h,22,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  // LAVA: volcano + streams to waterline
+  if(map.id==='lava'){
+    ctx.fillStyle='rgba(55,25,15,.92)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,230); ctx.lineTo(180,70); ctx.lineTo(360,230); ctx.lineTo(360,H); ctx.fill();
+    ctx.fillStyle='rgba(45,20,10,.85)';
+    ctx.beginPath(); ctx.moveTo(1100,H); ctx.lineTo(1100,240); ctx.lineTo(1260,120); ctx.lineTo(1420,240); ctx.lineTo(1420,H); ctx.fill();
+    ctx.fillStyle='rgba(255,80,0,.8)';
+    ctx.beginPath(); ctx.moveTo(155,100); ctx.lineTo(180,68); ctx.lineTo(205,100); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(1240,145); ctx.lineTo(1260,118); ctx.lineTo(1280,145); ctx.fill();
+    const lavGrad=ctx.createLinearGradient(0,68,0,215); lavGrad.addColorStop(0,'rgba(255,100,0,.85)'); lavGrad.addColorStop(1,'rgba(200,40,0,.15)');
+    ctx.fillStyle=lavGrad; ctx.fillRect(168,68,24,152);
+    const lavGrad2=ctx.createLinearGradient(0,118,0,245); lavGrad2.addColorStop(0,'rgba(255,100,0,.75)'); lavGrad2.addColorStop(1,'rgba(200,40,0,.1)');
+    ctx.fillStyle=lavGrad2; ctx.fillRect(1250,118,18,130);
+    ctx.fillStyle='rgba(80,60,50,.35)';
+    for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(170+i*14,50-i*12,14+i*6,0,Math.PI*2); ctx.fill(); }
+  }
+
+  // ICE: glacier shelves descending to water, floating iceberg chunks
+  if(map.id==='ice'){
+    // Left glacier shelf — solid, goes to bottom
+    ctx.fillStyle='rgba(210,235,255,.85)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,175); ctx.lineTo(65,155); ctx.lineTo(160,170); ctx.lineTo(270,148); ctx.lineTo(380,172); ctx.lineTo(440,185); ctx.lineTo(440,H); ctx.fill();
+    // Inner shadowed face
+    ctx.fillStyle='rgba(150,200,240,.4)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,178); ctx.lineTo(65,160); ctx.lineTo(160,175); ctx.lineTo(270,155); ctx.lineTo(380,176); ctx.lineTo(440,188); ctx.lineTo(440,H); ctx.fill();
+    // Right glacier shelf
+    ctx.fillStyle='rgba(195,228,255,.80)';
+    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,178); ctx.lineTo(1450,155); ctx.lineTo(1340,172); ctx.lineTo(1220,158); ctx.lineTo(1110,180); ctx.lineTo(1080,H); ctx.fill();
+    ctx.fillStyle='rgba(150,200,240,.35)';
+    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,182); ctx.lineTo(1450,160); ctx.lineTo(1340,176); ctx.lineTo(1220,162); ctx.lineTo(1110,183); ctx.lineTo(1080,H); ctx.fill();
+    // Floating icebergs — chunky, above waterline
+    const bergs=[{x:550,w:90},{x:740,w:70},{x:920,w:85}];
+    for(const b of bergs){
+      ctx.fillStyle='rgba(235,248,255,.90)';
+      ctx.beginPath();
+      ctx.moveTo(b.x-b.w/2,202); ctx.lineTo(b.x-b.w*0.4,185); ctx.lineTo(b.x-b.w*0.1,175); ctx.lineTo(b.x+b.w*0.15,180); ctx.lineTo(b.x+b.w/2,196); ctx.fill();
+      ctx.fillStyle='rgba(160,210,240,.5)';
+      ctx.beginPath(); ctx.moveTo(b.x-b.w*0.35,200); ctx.lineTo(b.x-b.w*0.1,190); ctx.lineTo(b.x+b.w*0.2,198); ctx.fill();
+    }
+  }
+
+  // MANGROVE: twisted root trees
+  if(map.id==='mangrove'){
+    const trees=[{x:80},{x:350},{x:700},{x:1050},{x:1380}];
+    for(const t of trees){
+      ctx.strokeStyle='rgba(30,80,40,.85)'; ctx.lineWidth=12;
+      ctx.beginPath(); ctx.moveTo(t.x,230); ctx.lineTo(t.x,130); ctx.stroke();
+      ctx.lineWidth=6;
+      for(let r=-2;r<=2;r++){
+        ctx.beginPath(); ctx.moveTo(t.x,195); ctx.quadraticCurveTo(t.x+r*45,230,t.x+r*60,H); ctx.stroke();
+      }
+      ctx.fillStyle='rgba(30,120,60,.72)'; ctx.beginPath(); ctx.arc(t.x,120,42,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(50,150,70,.5)'; ctx.beginPath(); ctx.arc(t.x-28,135,28,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(t.x+28,130,26,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='rgba(20,60,30,.45)'; ctx.fillRect(0,205,W,H-205);
+  }
+
+  // CRYSTAL: elegant low spire clusters at the water horizon
+  if(map.id==='crystal'){
+    // Glowing underwater shelf
+    const shelfGrad=ctx.createLinearGradient(0,190,0,H); shelfGrad.addColorStop(0,'rgba(80,230,240,.32)'); shelfGrad.addColorStop(1,'rgba(20,180,200,.55)');
+    ctx.fillStyle=shelfGrad;
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,210); ctx.quadraticCurveTo(500,190,755,207); ctx.quadraticCurveTo(1100,222,1510,200); ctx.lineTo(1510,H); ctx.fill();
+    // Spire clusters — short, elegant, clustered in groups
+    const groups=[{cx:130},{cx:360},{cx:620},{cx:880},{cx:1120},{cx:1380}];
+    for(const g of groups){
+      // Three spires per cluster: center tall, two shorter flanking
+      const spires=[{dx:-22,h:52,w:9,c:'rgba(160,250,255,.82)'},{dx:0,h:70,w:11,c:'rgba(130,240,255,.9)'},{dx:20,h:46,w:8,c:'rgba(180,255,250,.75)'}];
+      for(const s of spires){
+        const bx=g.cx+s.dx, by=210;
+        ctx.fillStyle=s.c;
+        ctx.beginPath(); ctx.moveTo(bx-s.w,by); ctx.lineTo(bx-s.w*0.25,by-s.h); ctx.lineTo(bx,by-s.h-8); ctx.lineTo(bx+s.w*0.25,by-s.h); ctx.lineTo(bx+s.w,by); ctx.fill();
+        // bright tip glint
+        ctx.fillStyle='rgba(255,255,255,.75)';
+        ctx.beginPath(); ctx.moveTo(bx-2,by-s.h-2); ctx.lineTo(bx,by-s.h-10); ctx.lineTo(bx+2,by-s.h-2); ctx.fill();
+      }
+    }
+    // Soft shimmer glow at waterline
+    const shimGrad=ctx.createLinearGradient(0,185,0,215); shimGrad.addColorStop(0,'rgba(130,255,255,.0)'); shimGrad.addColorStop(1,'rgba(130,255,255,.18)');
+    ctx.fillStyle=shimGrad; ctx.fillRect(0,185,W,30);
+  }
+
+  // STORM: dark sea cliffs + lightning + clouds
+  if(map.id==='storm'){
+    ctx.fillStyle='rgba(25,35,55,.9)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,185); ctx.lineTo(90,150); ctx.lineTo(200,175); ctx.lineTo(320,140); ctx.lineTo(440,165); ctx.lineTo(440,H); ctx.fill();
+    ctx.fillStyle='rgba(20,28,48,.8)';
+    ctx.beginPath(); ctx.moveTo(1050,H); ctx.lineTo(1050,170); ctx.lineTo(1180,135); ctx.lineTo(1310,160); ctx.lineTo(1430,145); ctx.lineTo(1510,168); ctx.lineTo(1510,H); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,180,.7)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(750,30); ctx.lineTo(735,90); ctx.lineTo(755,90); ctx.lineTo(738,155); ctx.stroke();
+    ctx.fillStyle='rgba(50,60,80,.65)';
+    for(let i=0;i<5;i++){ ctx.beginPath(); ctx.arc(180+i*280,55+i%2*20,55+i*8,0,Math.PI*2); ctx.fill(); }
+  }
+
+  // JUNGLE: dense canopy + vines
+  if(map.id==='jungle'){
+    const jColors=['rgba(10,90,30,.9)','rgba(15,110,35,.8)','rgba(8,75,25,.85)'];
+    const jTrees=[{x:0,w:200},{x:160,w:180},{x:330,w:200},{x:500,w:190},{x:680,w:210},{x:870,w:185},{x:1040,w:200},{x:1220,w:190},{x:1390,w:200}];
+    const jH=[160,185,155,170,150,180,160,175,165];
+    jTrees.forEach((t,i)=>{
+      ctx.fillStyle=jColors[i%3];
+      ctx.beginPath(); ctx.moveTo(t.x,H); ctx.lineTo(t.x,240); ctx.quadraticCurveTo(t.x+t.w/2,210-jH[i],t.x+t.w,240); ctx.lineTo(t.x+t.w,H); ctx.fill();
+    });
+    ctx.strokeStyle='rgba(30,100,20,.6)'; ctx.lineWidth=3;
+    for(let i=0;i<12;i++){
+      const vx=80+i*125;
+      ctx.beginPath(); ctx.moveTo(vx,50); ctx.quadraticCurveTo(vx+20,130,vx,190); ctx.stroke();
+    }
+  }
+
+  // TOXIC: glowing sludge banks and bubbles
+  if(map.id==='toxic'){
+    ctx.fillStyle='rgba(40,80,0,.85)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,195); ctx.quadraticCurveTo(200,170,400,195); ctx.lineTo(400,H); ctx.fill();
+    ctx.fillStyle='rgba(35,70,0,.8)';
+    ctx.beginPath(); ctx.moveTo(1100,H); ctx.lineTo(1100,188); ctx.quadraticCurveTo(1300,162,1510,188); ctx.lineTo(1510,H); ctx.fill();
+    for(let i=0;i<15;i++){
+      ctx.fillStyle=`rgba(120,255,0,${0.25+Math.sin(i*0.9)*0.15})`;
+      ctx.beginPath(); ctx.arc(80+i*100,(170+i*12)%70+155,6+i%5,0,Math.PI*2); ctx.fill();
+    }
+    const toxGrad=ctx.createLinearGradient(0,150,0,220); toxGrad.addColorStop(0,'rgba(100,255,0,.0)'); toxGrad.addColorStop(1,'rgba(100,255,0,.18)');
+    ctx.fillStyle=toxGrad; ctx.fillRect(0,150,W,70);
+  }
+
+  // DESERT: sand dunes and mesa
+  if(map.id==='desert'){
+    ctx.fillStyle='rgba(210,150,60,.8)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,205); ctx.quadraticCurveTo(250,155,500,205); ctx.quadraticCurveTo(750,245,1000,195); ctx.quadraticCurveTo(1250,155,1510,200); ctx.lineTo(1510,H); ctx.fill();
+    ctx.fillStyle='rgba(230,170,80,.6)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,210); ctx.quadraticCurveTo(380,175,620,210); ctx.lineTo(1510,205); ctx.lineTo(1510,H); ctx.fill();
+    ctx.fillStyle='rgba(180,120,40,.7)';
+    ctx.beginPath(); ctx.moveTo(700,H); ctx.lineTo(700,165); ctx.lineTo(740,145); ctx.lineTo(850,145); ctx.lineTo(890,165); ctx.lineTo(890,H); ctx.fill();
+    ctx.fillStyle='rgba(30,110,20,.85)'; ctx.fillRect(142,125,14,90); ctx.fillRect(108,148,38,12); ctx.fillRect(96,138,22,12); ctx.fillRect(160,158,22,12);
+  }
+
+  // MOON: lunar surface with craters and stars
+  if(map.id==='moon'){
+    ctx.fillStyle='rgba(100,110,140,.8)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,192); ctx.quadraticCurveTo(300,165,600,192); ctx.quadraticCurveTo(900,215,1200,185); ctx.lineTo(1510,195); ctx.lineTo(1510,H); ctx.fill();
+    ctx.strokeStyle='rgba(60,70,100,.7)'; ctx.lineWidth=3;
+    for(let i=0;i<5;i++){ ctx.beginPath(); ctx.arc(150+i*300,193,18+i*4,Math.PI,0); ctx.stroke(); }
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    const stars=[[120,40],[380,25],[620,55],[840,30],[1050,18],[1280,45],[1450,35],[240,70],[700,20],[1150,60]];
+    for(const s of stars){ ctx.beginPath(); ctx.arc(s[0],s[1],1.5+Math.sin(s[0])*0.5,0,Math.PI*2); ctx.fill(); }
+  }
+
+  // VOID: dark spires and reality tears
+  if(map.id==='void'){
+    ctx.fillStyle='rgba(30,0,60,.95)';
+    const spireArr=[[80,60,160],[250,45,180],[470,75,145],[720,55,170],[980,70,155],[1230,50,175],[1450,65,165]];
+    for(const s of spireArr){
+      ctx.beginPath(); ctx.moveTo(s[0]-s[1]/2,H); ctx.lineTo(s[0]-s[1]*0.15,s[2]); ctx.lineTo(s[0],s[2]-20); ctx.lineTo(s[0]+s[1]*0.15,s[2]); ctx.lineTo(s[0]+s[1]/2,H); ctx.fill();
+    }
+    for(let i=0;i<5;i++){
+      const vx=160+i*280, vy=175;
+      const vg=ctx.createRadialGradient(vx,vy,0,vx,vy,30);
+      vg.addColorStop(0,'rgba(120,0,255,.45)'); vg.addColorStop(1,'rgba(120,0,255,0)');
+      ctx.fillStyle=vg; ctx.beginPath(); ctx.arc(vx,vy,30,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='rgba(200,160,255,.9)';
+    for(let i=0;i<20;i++){ ctx.beginPath(); ctx.arc(i*78+10,10+i%5*18,1+i%3,0,Math.PI*2); ctx.fill(); }
+  }
+
+  // HEAVEN: floating cloud islands and rainbow arc
+  if(map.id==='heaven'){
+    const rg=ctx.createLinearGradient(300,50,900,200);
+    rg.addColorStop(0,'rgba(255,80,80,.3)'); rg.addColorStop(0.2,'rgba(255,180,0,.3)'); rg.addColorStop(0.4,'rgba(80,255,80,.3)');
+    rg.addColorStop(0.6,'rgba(80,180,255,.3)'); rg.addColorStop(1,'rgba(180,80,255,.3)');
+    ctx.strokeStyle=rg; ctx.lineWidth=18;
+    ctx.beginPath(); ctx.arc(W/2,450,500,Math.PI*1.1,Math.PI*1.9); ctx.stroke();
+    const cloudIsles=[{x:200,y:120,w:160},{x:600,y:90,w:200},{x:1000,y:110,w:180},{x:1380,y:95,w:155}];
+    for(const c of cloudIsles){
+      ctx.fillStyle='rgba(255,255,255,.88)';
+      ctx.beginPath(); ctx.arc(c.x,c.y,c.w*0.42,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(c.x+c.w*0.28,c.y+10,c.w*0.3,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(c.x-c.w*0.28,c.y+12,c.w*0.28,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(200,230,255,.6)'; ctx.fillRect(c.x-c.w*0.42,c.y+8,c.w*0.84,22);
+    }
+  }
+
+  // GALAXY: nebula + star field + rock spires
+  if(map.id==='galaxy'){
+    const nebColors=['rgba(100,20,200,.25)','rgba(200,20,150,.2)','rgba(20,100,200,.22)'];
+    for(let i=0;i<5;i++){
+      const ng=ctx.createRadialGradient(150+i*300,100+i%3*40,0,150+i*300,100+i%3*40,120);
+      ng.addColorStop(0,nebColors[i%3]); ng.addColorStop(1,'transparent');
+      ctx.fillStyle=ng; ctx.beginPath(); ctx.arc(150+i*300,100+i%3*40,120,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='rgba(255,255,255,.9)';
+    for(let i=0;i<40;i++){ ctx.beginPath(); ctx.arc((i*373)%W,(i*197+13)%210,0.8+i%3*0.6,0,Math.PI*2); ctx.fill(); }
+    ctx.fillStyle='rgba(15,0,40,.95)';
+    for(let i=0;i<6;i++){
+      const sx=100+i*260;
+      ctx.beginPath(); ctx.moveTo(sx-40,H); ctx.lineTo(sx-10,190); ctx.lineTo(sx,178); ctx.lineTo(sx+10,190); ctx.lineTo(sx+40,H); ctx.fill();
+    }
+  }
+
+  // WAVES drawn on top so features are covered
   drawWater(210,'rgba(255,255,255,.28)',16,1); drawWater(310,'rgba(0,150,240,.42)',22,1.15); drawWater(510,'rgba(0,100,210,.48)',28,1.3); drawWater(700,'rgba(0,60,160,.58)',34,1.5);
 }
 function drawWater(y,color,amp,spd){
@@ -2119,205 +2403,55 @@ function drawHUD() {
   buttons = [];
 
   // =====================================================
-  // LEFT MAIN STATS PANEL
+  // LEFT PANEL — Location, Coins, Gems only
   // =====================================================
 
   roundRect(
     14, 14,
-    470, 150,
+    270, 150,
     20,
     'rgba(0,0,0,.38)',
     'rgba(255,255,255,.22)',
     2
   );
 
-  // Title
-  text(currentMap().name, 34, 42, 28, 'left', '#9effff');
-
-  // LEFT COLUMN
-  text(`Coins: ${Math.floor(game.coins)}`, 34, 78, 24);
-  text(`Score: ${game.score}`, 34, 108, 22);
-  text(`Gems: ${game.gems || 0}`, 34, 138, 22, 'left', '#74b9ff');
-
-  // RIGHT COLUMN (shifted further right)
-  text(
-    `Caught: ${game.caught}`,
-    300,
-    78,
-    20,
-    'left',
-    '#dfe6e9'
-  );
-
-  text(
-    `Combo: ${game.combo.toFixed(1)}x`,
-    300,
-    108,
-    22,
-    'left',
-    '#fff16a'
-  );
-
-  // SOUND BUTTON — small gear icon, gray, bottom-right of stats panel
-  const gearBtnX = 430, gearBtnY = 120, gearBtnS = 36;
-  const gearColor = SFX.settings.mute ? 'rgba(255,71,87,.75)' : 'rgba(80,80,90,.82)';
-  roundRect(gearBtnX, gearBtnY, gearBtnS, gearBtnS, 8, gearColor, 'rgba(255,255,255,.18)', 1.5);
-  // draw gear icon on canvas
-  ctx.save();
-  ctx.translate(gearBtnX + gearBtnS/2, gearBtnY + gearBtnS/2);
-  ctx.fillStyle = SFX.settings.mute ? '#ff9999' : '#cccccc';
-  const teeth = 8, outerR = 9, innerR = 6, toothW = 0.28;
-  ctx.beginPath();
-  for(let i = 0; i < teeth; i++){
-    const a0 = (i / teeth) * Math.PI * 2 - toothW;
-    const a1 = (i / teeth) * Math.PI * 2 + toothW;
-    const a2 = ((i + 0.5) / teeth) * Math.PI * 2 - toothW * 0.5;
-    const a3 = ((i + 0.5) / teeth) * Math.PI * 2 + toothW * 0.5;
-    if(i === 0) ctx.moveTo(Math.cos(a0)*outerR, Math.sin(a0)*outerR);
-    else ctx.lineTo(Math.cos(a0)*outerR, Math.sin(a0)*outerR);
-    ctx.lineTo(Math.cos(a1)*outerR, Math.sin(a1)*outerR);
-    ctx.lineTo(Math.cos(a2)*innerR, Math.sin(a2)*innerR);
-    ctx.lineTo(Math.cos(a3)*innerR, Math.sin(a3)*innerR);
-  }
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2);
-  ctx.fillStyle = gearColor; ctx.fill();
-  ctx.restore();
-  addButton(gearBtnX, gearBtnY, gearBtnS, gearBtnS, '', () => { SFX.panelOpen(); game.panel = 'sound'; }, 'transparent');
-
+  text('Location: ' + currentMap().name, 34, 42, 17, 'left', '#9effff');
+  text(`Coins: ${fmt(Math.floor(game.coins))}`, 34, 82, 25);
+  text(`Gems: ${game.gems || 0}`, 34, 122, 23, 'left', '#74b9ff');
 
   // =====================================================
-  // RIGHT PANEL (narrower)
+  // RIGHT PANEL — potions + single MENU button
   // =====================================================
 
-  const rightX = W - 330;   // moved left slightly
-  const panelW = 300;       // smaller panel
+  const rightX = W - 310;
+  const panelW = 280;
 
   roundRect(
     rightX, 14,
-    panelW + 20,
-    168,
+    panelW,
+    118,
     16,
     'rgba(0,0,0,.30)',
     'rgba(255,255,255,.12)',
     1.2
   );
 
-
-  // =====================================================
-  // POTIONS
-  // =====================================================
-
+  // Potions row
   const activePotions = Object.entries(game.potions)
     .filter(([_, v]) => v > 0)
     .map(([k, v]) => `${k} ${Math.ceil(v / 1000)}s`)
     .join(' • ');
 
-  text('Potions', rightX + 14, 34, 16, 'left', '#ffdd59');
+  text('Potions', rightX + 14, 34, 15, 'left', '#ffdd59');
+  roundRect(rightX + 12, 44, panelW - 24, 24, 7, 'rgba(255,255,255,.05)', 'rgba(255,255,255,.10)', 1);
+  text(activePotions || 'none', rightX + panelW/2, 56, 12, 'center', activePotions ? '#ffdd59' : '#777');
 
-  roundRect(
-    rightX + 12,
-    44,
-    panelW + 4,
-    26,
-    8,
-    'rgba(255,255,255,.05)',
-    'rgba(255,255,255,.10)',
-    1
-  );
-
-  text(
-    activePotions || 'none',
-    rightX + panelW / 2,
-    62,
-    13,
-    'center',
-    activePotions ? '#ffdd59' : '#777'
-  );
-
-
-  // =====================================================
-  // BUTTONS (ROW 1 = FULL WIDTH 4 EQUAL BUTTONS)
-  // =====================================================
-
-  const gap = 8;
-  const btnH = 32;
-
-  const cols = 3;
-
-  // total usable width inside panel
-  const innerW = panelW - 24; // 12px padding each side
-
-  // compute button width so 4 fit perfectly
-  const btnW = (innerW - gap * (cols - 1)) / cols;
-
-  const x0 = rightX + 12;
-  const y1 = 92;
-
-  // Row 1 (now perfectly fills panel width)
+  // MENU button (single big button)
   const pulse = 0.7 + Math.sin(Date.now() * 0.01) * 0.3;
+  const anyTutorialHighlight = game.tutorial.active && [3,5,7,9,11].includes(game.tutorial.step);
+  const menuColor = anyTutorialHighlight ? `rgba(255,241,106,${pulse})` : '#0984e3';
 
-  const shopColor =
-    game.tutorial.active && game.tutorial.step === 3
-      ? `rgba(255,241,106,${pulse})`
-    : '#0fbcf9';
-  const mapsColor =
-    game.tutorial.active && game.tutorial.step === 7
-      ? `rgba(255,241,106,${pulse})`
-      : '#00cec9';
-  const questColor =
-    game.tutorial.active && game.tutorial.step === 9
-      ? `rgba(255,241,106,${pulse})`
-      : '#55efc4';
-  const rodsColor =
-    game.tutorial.active && game.tutorial.step === 5
-      ? `rgba(255,241,106,${pulse})`
-      : '#fdcb6e';
-  const catchesColor =
-    game.tutorial.active && game.tutorial.step === 11
-      ? `rgba(255,241,106,${pulse})`
-      : '#e17055';
-
-  addButton(x0 + (btnW + gap) * 0, y1, btnW, btnH, 'Shop',  () => { SFX.panelOpen(); game.panel='shop'; }, shopColor).draw(shopColor);
-  addButton(x0 + (btnW + gap) * 1, y1, btnW, btnH, 'Maps',  () => { SFX.panelOpen(); game.panel='maps'; }, mapsColor).draw(mapsColor);
-  addButton(x0 + (btnW + gap) * 2, y1, btnW, btnH, 'Quest', () => { SFX.panelOpen(); game.panel='quests'; },questColor).draw(questColor);
-
-
-  // Row 2 (3 equal buttons)
-  const cols2 = 3;
-  const btnW2 = (innerW - gap * (cols2 - 1)) / cols2;
-
-  const y2 = 128;
-
-  addButton(
-    x0 + (btnW2 + gap) * 0,
-    y2,
-    btnW2,
-    btnH,
-    'Bait',
-    () => { SFX.panelOpen(); game.panel = 'bait'; },
-    '#a29bfe'
-  ).draw('#a29bfe');
-
-  addButton(
-    x0 + (btnW2 + gap) * 1,
-    y2,
-    btnW2,
-    btnH,
-    'Gear',
-    () => { SFX.panelOpen(); game.panel = 'rods'; },
-    rodsColor
-  ).draw(rodsColor);
-
-  addButton(
-    x0 + (btnW2 + gap) * 2,
-    y2,
-    btnW2+20,
-    btnH,
-    'Catches',
-    () => { SFX.panelOpen(); game.panel = 'collection'; },
-    catchesColor
-  ).draw(catchesColor);
+  addButton(rightX + 12, 76, panelW - 24, 44, '☰  MENU', () => { SFX.panelOpen(); game.panel = 'menu'; }, menuColor).draw(menuColor);
 }
 
 function drawTutorial(){
@@ -2357,11 +2491,72 @@ function drawTutorial(){
     ctx.fill();
   }
 }
-function drawPanel(){ if(!game.panel) return; ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,W,H); roundRect(175,95,1160,670,30,'#102a43','rgba(255,255,255,.55)',5); addButton(1250,120,58,58,'X',()=>{ SFX.panelClose(); game.panel=null; },'#ff4757').draw('#ff4757'); text(game.panel.toUpperCase(),W/2,145,48,'center');
-  if(game.panel==='shop') drawShopPanel(); if(game.panel==='maps') drawMapsPanel(); if(game.panel==='rods') drawRodsPanel(); if(game.panel==='bait') drawBaitPanel(); if(game.panel==='quests') drawQuestsPanel(); if(game.panel==='collection') drawCollectionPanel(); if(game.panel==='sound') drawSoundPanel();}
+function drawPanel(){ if(!game.panel) return; ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,W,H); roundRect(175,95,1160,670,30,'#102a43','rgba(255,255,255,.55)',5); addButton(1250,120,58,58,'X',()=>{ SFX.panelClose(); game.panel=null; },'#ff4757').draw('#ff4757'); text(game.panel==='menu'?'MENU':game.panel.toUpperCase(),W/2,145,48,'center');
+  if(game.panel==='menu') drawMenuPanel(); if(game.panel==='shop') drawShopPanel(); if(game.panel==='maps') drawMapsPanel(); if(game.panel==='rods') drawRodsPanel(); if(game.panel==='bait') drawBaitPanel(); if(game.panel==='quests') drawQuestsPanel(); if(game.panel==='collection') drawCollectionPanel(); if(game.panel==='sound') drawSoundPanel(); if(game.panel==='stats') drawStatsPanel();}
 function buy(cost,fn){ if(game.coins>=cost){ game.coins-=cost; fn(); SFX.coins(); save(); return true; } SFX.error(); msg('Not enough coins',W/2,100,'#ff7675'); return false; }
 function buyGems(cost,fn){ if(game.gems>=cost){ game.gems-=cost; fn(); SFX.coins(); save(); return true; } SFX.error(); msg('Not enough gems',W/2,100,'#9effff'); return false; }
 function upgradeGemCost(lvl,max){ return Math.ceil(1 + lvl * (9 / Math.max(1, max - 1))); }
+function drawMenuPanel(){
+  const pulse = 0.7 + Math.sin(Date.now() * 0.01) * 0.3;
+
+  const btns = [
+    { label:'Shop',       color:'#0fbcf9', panel:'shop',       tutStep:3  },
+    { label:'Maps',       color:'#00cec9', panel:'maps',       tutStep:7  },
+    { label:'Quests',     color:'#55efc4', panel:'quests',     tutStep:9  },
+    { label:'Bait',       color:'#a29bfe', panel:'bait',       tutStep:-1 },
+    { label:'Gear',       color:'#fdcb6e', panel:'rods',       tutStep:5  },
+    { label:'Catches',    color:'#e17055', panel:'collection', tutStep:11 },
+    { label:'Statistics', color:'#74b9ff', panel:'stats',      tutStep:-1 },
+    { label:'Settings',   color: SFX.settings.mute ? '#ff4757' : '#636e72', panel:'sound', tutStep:-1 },
+  ];
+
+  const cols = 4;
+  const btnW = 220, btnH = 58, gap = 20;
+  const totalW = cols * btnW + (cols-1) * gap;
+  const startX = W/2 - totalW/2;
+  const startY = 210;
+
+  btns.forEach((b, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const bx = startX + col * (btnW + gap);
+    const by = startY + row * (btnH + gap + 14);
+    const highlight = game.tutorial.active && game.tutorial.step === b.tutStep;
+    const color = highlight ? `rgba(255,241,106,${pulse})` : b.color;
+    addButton(bx, by, btnW, btnH, b.label, () => { SFX.panelOpen(); game.panel = b.panel; }, color).draw(color);
+  });
+}
+
+function drawStatsPanel(){
+  const cx = W/2;
+  text('Your fishing statistics', cx, 188, 20, 'center', '#9effff');
+
+  const stats = [
+    ['Score',       game.score.toLocaleString()],
+    ['Fish Caught', game.caught.toLocaleString()],
+    ['Best Catch',  game.bestCatch || 'None'],
+    ['Current Combo', game.combo.toFixed(1) + 'x'],
+    ['Coins Earned', Math.floor(game.coins).toLocaleString()],
+    ['Gems',         String(game.gems || 0)],
+  ];
+
+  const cardW = 440, cardH = 62, gap = 14;
+  const cols = 2;
+  const totalW = cols * cardW + gap;
+  const sx = W/2 - totalW/2;
+  const sy = 225;
+
+  stats.forEach((s, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const bx = sx + col * (cardW + gap);
+    const by = sy + row * (cardH + gap);
+    roundRect(bx, by, cardW, cardH, 14, 'rgba(255,255,255,.08)', 'rgba(255,255,255,.18)', 1.5);
+    text(s[0], bx + 22, by + 22, 17, 'left', '#9effff');
+    text(s[1], bx + cardW - 18, by + 22, 22, 'right', '#fff');
+  });
+}
+
 function drawShopPanel(){
   text('Shop upgrades use gems! Get gems by catching rare fish that have labels!', W/2, 188, 19, 'center', '#9effff');
 
@@ -2598,8 +2793,15 @@ function drawQuestsPanel(){
 
 function drawCollectionPanel(){
 
+  const RARITY = ['Common','Uncommon','Rare','Epic','Legendary'];
+  const RARITY_COLOR = ['#b2bec3','#55efc4','#74b9ff','#a29bfe','#ffd700'];
+
+  // helper: check if entry is caught (handles old boolean saves + new object saves)
+  function isCaught(entry){ return entry === true || (entry && entry.caught); }
+  function getVariants(entry){ return (entry && entry.variants) ? entry.variants : {}; }
+
   const cardW = 320;
-  const cardH = 170;
+  const cardH = 195;
   const gap = 18;
 
   const panelX = 175;
@@ -2610,182 +2812,127 @@ function drawCollectionPanel(){
   const startX = 240;
   const startY = 200;
 
-  // -----------------------------
   // BUILD GROUPED FISH BY MAP
-  // -----------------------------
   const grouped = {};
-
-  for(const mapId in fishTypesByMap){
-
-    const mapFish = fishTypesByMap[mapId];
-
-    grouped[mapId] = mapFish;
-  }
-
+  for(const mapId in fishTypesByMap){ grouped[mapId] = fishTypesByMap[mapId]; }
   const mapIds = Object.keys(grouped);
 
-  // estimate content height
   let contentH = 0;
   for(const id of mapIds){
-    contentH += 60; // header space
+    contentH += 60;
     contentH += Math.ceil(grouped[id].length / 3) * (cardH + gap);
   }
 
   const maxScroll = Math.max(0, contentH - panelH + 750);
-
   game.collectionScroll = clamp(game.collectionScroll || 0, 0, maxScroll);
 
   ctx.save();
-
-  // clip panel
   ctx.beginPath();
   ctx.rect(panelX, panelY, panelW, panelH);
   ctx.clip();
 
   let yOffset = startY - game.collectionScroll;
 
-  // -----------------------------
-  // DRAW EACH MAP SECTION
-  // -----------------------------
   for(const mapId of mapIds){
-
     const mapFish = grouped[mapId];
-
-    // MAP HEADER
     yOffset += 40;
-
-    text(
-      maps.find(m=>m.id===mapId)?.name || mapId.toUpperCase(),
-      startX,
-      yOffset,
-      28,
-      'left',
-      '#81ecec'
-    );
-
+    text(maps.find(m=>m.id===mapId)?.name || mapId.toUpperCase(), startX, yOffset, 28, 'left', '#81ecec');
     yOffset += 30;
 
-    // GRID
     const cols = 3;
-
     mapFish.forEach((f, i)=>{
-
       const col = i % cols;
       const row = Math.floor(i / cols);
-
       const x = startX + col * 360;
       const y = yOffset + row * (cardH + gap);
 
-      const caught = game.collection[f.name];
+      const entry = game.collection[f.name];
+      const caught = isCaught(entry);
+      const variants = getVariants(entry);
 
-      // cull offscreen
       if(y + cardH < panelY || y > panelY + panelH) return;
 
-      roundRect(
-        x,
-        y,
-        cardW,
-        cardH,
-        18,
+      const rarityIdx = f.id - 1; // 0-4
+      const rarityColor = RARITY_COLOR[rarityIdx] || '#b2bec3';
+
+      roundRect(x, y, cardW, cardH, 18,
         caught ? 'rgba(46,213,115,.18)' : 'rgba(255,255,255,.08)',
-        'rgba(255,255,255,.18)',
-        2
+        caught ? rarityColor : 'rgba(255,255,255,.18)',
+        caught ? 2.5 : 2
       );
 
-      // -----------------------------
-      // FISH DRAW AREA (FULL SIZE)
-      // -----------------------------
+      // FISH DRAW AREA
       ctx.save();
-
       const fx = x + cardW / 2;
-      const fy = y + 70;
-
+      const fy = y + 72;
       ctx.translate(fx, fy);
 
       if(caught){
-
-        // BIG FULL FISH (not icon)
         const scale = 0.65;
-
         ctx.scale(scale, scale);
-
         ctx.fillStyle = f.body || '#fff';
-
         traceFishBody(f.shape || 'round', 220, 120);
         ctx.fill();
-
-        // fins + pattern for visual richness
         drawTailShape(f.tail || 'fork', 220, 120, f.fin || '#fff');
         drawFishPattern(f.pattern || 'none', 220, 120);
-
-        // eye
         ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(60, -20, 6, 0, Math.PI*2);
-        ctx.fill();
-
+        ctx.beginPath(); ctx.arc(60, -20, 6, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = 'black';
-        ctx.beginPath();
-        ctx.arc(62, -20, 3, 0, Math.PI*2);
-        ctx.fill();
-
+        ctx.beginPath(); ctx.arc(62, -20, 3, 0, Math.PI*2); ctx.fill();
       } else {
-
-        // BIG QUESTION MARK
         ctx.fillStyle = 'rgba(255,255,255,.25)';
         ctx.font = '44px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('???', 0, 0);
       }
-
       ctx.restore();
 
-      // -----------------------------
-      // TEXT
-      // -----------------------------
-      text(
-        caught ? f.name : 'Unknown Fish',
-        x + 20,
-        y + 140,
-        22,
-        'left',
-        caught ? '#fff' : '#777'
-      );
+      // RARITY BADGE
+      const rarLabel = caught ? RARITY[rarityIdx] || 'Common' : '?????';
+      roundRect(x + 8, y + 8, 90, 22, 6, caught ? rarityColor + '33' : 'rgba(255,255,255,.05)', rarityColor, 1.5);
+      text(rarLabel, x + 53, y + 20, 12, 'center', caught ? rarityColor : '#555');
 
-      text(
-        caught
-          ? 'Caught'
-          : 'Location: ' + (maps.find(m => m.id === mapId)?.name || 'Unknown'),
-        x + 20,
-        y + 160,
-        16,
-        'left',
-        caught ? '#7bed9f' : '#999'
-      );
+      // FISH NAME
+      text(caught ? f.name : 'Unknown Fish', x + 14, y + 148, 19, 'left', caught ? '#fff' : '#777');
 
+      // VARIANTS ROW
+      if(caught){
+        const hasGolden = variants['golden'];
+        const hasRainbow = variants['rainbow'];
+        // small variant dots
+        const dotY = y + 170;
+        let dotX = x + 14;
+        // Base variant (always show as caught)
+        roundRect(dotX, dotY, 58, 18, 5, 'rgba(180,180,180,.25)', 'rgba(255,255,255,.3)', 1);
+        text('Base ✓', dotX + 29, dotY + 10, 10, 'center', '#dfe6e9');
+        dotX += 64;
+        // Golden
+        roundRect(dotX, dotY, 60, 18, 5, hasGolden ? 'rgba(255,215,0,.2)' : 'rgba(255,255,255,.05)', hasGolden ? '#ffd700' : 'rgba(255,255,255,.2)', 1);
+        text(hasGolden ? 'Gold ✓' : 'Gold', dotX + 30, dotY + 10, 10, 'center', hasGolden ? '#ffd700' : '#555');
+        dotX += 66;
+        // Rainbow
+        roundRect(dotX, dotY, 72, 18, 5, hasRainbow ? 'rgba(255,100,255,.15)' : 'rgba(255,255,255,.05)', hasRainbow ? '#ff9ff3' : 'rgba(255,255,255,.2)', 1);
+        text(hasRainbow ? 'Rbw ✓' : 'Rbw', dotX + 36, dotY + 10, 10, 'center', hasRainbow ? '#ff9ff3' : '#555');
+      } else {
+        text('Location: ' + (maps.find(m => m.id === mapId)?.name || 'Unknown'), x + 14, y + 170, 13, 'left', '#999');
+      }
     });
 
     const rows = Math.ceil(mapFish.length / 3);
-    yOffset += rows * (cardH + gap) + 40; // spacing between maps
+    yOffset += rows * (cardH + gap) + 40;
   }
 
   ctx.restore();
 
-  // -----------------------------
-  // SCROLLBAR (same style as maps)
-  // -----------------------------
+  // SCROLLBAR
   if(maxScroll > 0){
-
     const barX = panelX + panelW + 40;
     const barY = panelY + 20;
     const barH = panelH - 100;
-
     const thumbH = Math.max(40, barH * (panelH / contentH));
     const scrollRatio = game.collectionScroll / maxScroll;
-
     const thumbY = barY + (barH - thumbH) * scrollRatio;
-
     roundRect(barX, barY, 6, barH, 3, 'rgba(255,255,255,.08)');
     roundRect(barX, thumbY, 6, thumbH, 3, '#e17055');
   }
