@@ -1862,85 +1862,97 @@ function spawnChests(){ game.chests=[]; const count=currentMap().id==='bay'?1:2;
 
 function drawBackground(dt){
   const map=currentMap(); game.wave += dt*.035;
+  const T=Date.now()/1000;
   const sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,map.sky1); sky.addColorStop(.45,map.sky2); sky.addColorStop(1,map.depth); ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
 
-  // SUN / MOON (floating, above waves)
-  if(map.id==='moon'||map.id==='void'||map.id==='galaxy'){
-    ctx.fillStyle='rgba(240,245,255,.92)'; ctx.beginPath(); ctx.arc(1320,80,52,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle=map.sky1; ctx.beginPath(); ctx.arc(1338,68,42,0,Math.PI*2); ctx.fill();
-  } else if(map.id==='lava'){
-    ctx.fillStyle='rgba(255,70,20,.9)'; ctx.beginPath(); ctx.arc(1320,80,50,0,Math.PI*2); ctx.fill();
+  // SUN / MOON / special orb
+  if(map.id==='lava'){
+    // Blood-red sun
+    const sg=ctx.createRadialGradient(1320,80,0,1320,80,62);
+    sg.addColorStop(0,'rgba(255,120,20,1)'); sg.addColorStop(0.5,'rgba(255,50,0,.9)'); sg.addColorStop(1,'rgba(200,0,0,0)');
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(1320,80,62,0,Math.PI*2); ctx.fill();
+  } else if(map.id==='moon'||map.id==='storm'||map.id==='void'||map.id==='galaxy'){
+    // No generic orb for these — handled per-map below
   } else {
-    ctx.fillStyle='rgba(255,240,150,.85)'; ctx.beginPath(); ctx.arc(1320,80,50,0,Math.PI*2); ctx.fill();
+    // Normal golden sun
+    const sg=ctx.createRadialGradient(1320,80,0,1320,80,55);
+    sg.addColorStop(0,'rgba(255,252,180,1)'); sg.addColorStop(0.6,'rgba(255,230,80,.85)'); sg.addColorStop(1,'rgba(255,200,0,0)');
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(1320,80,55,0,Math.PI*2); ctx.fill();
   }
 
-  // BAY: soft distant headlands — gentle, clean
+  // ── BAY ──────────────────────────────────────────────────────────────────
   if(map.id==='bay'){
-    // Distant far hills, very faded
-    ctx.fillStyle='rgba(80,150,100,.28)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,200); ctx.quadraticCurveTo(380,145,760,195); ctx.quadraticCurveTo(1100,235,1510,190); ctx.lineTo(1510,H); ctx.fill();
-    // Closer shore bluffs left and right
-    ctx.fillStyle='rgba(60,125,80,.48)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,195); ctx.quadraticCurveTo(130,168,280,192); ctx.quadraticCurveTo(370,208,440,190); ctx.lineTo(440,H); ctx.fill();
-    ctx.fillStyle='rgba(50,110,70,.42)';
-    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,198); ctx.quadraticCurveTo(1380,170,1230,198); ctx.quadraticCurveTo(1090,218,1000,192); ctx.lineTo(1000,H); ctx.fill();
-    // Lighthouse silhouette on left bluff
-    ctx.fillStyle='rgba(240,235,220,.82)';
-    ctx.fillRect(188,128,16,68); // tower
-    ctx.beginPath(); ctx.moveTo(184,128); ctx.lineTo(196,108); ctx.lineTo(208,128); ctx.fill(); // cap
-    ctx.fillStyle='rgba(255,220,80,.6)';
-    ctx.beginPath(); ctx.arc(196,120,7,0,Math.PI*2); ctx.fill(); // light glow
+    // Far misty hills — three overlapping ridges
+    ctx.fillStyle='rgba(100,170,120,.18)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,155); ctx.bezierCurveTo(250,105,550,130,760,150); ctx.bezierCurveTo(980,170,1250,120,1510,140); ctx.lineTo(1510,H); ctx.fill();
+    ctx.fillStyle='rgba(70,140,95,.30)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,168); ctx.bezierCurveTo(200,130,420,118,640,150); ctx.bezierCurveTo(860,180,1100,130,1510,155); ctx.lineTo(1510,H); ctx.fill();
+    // Left headland
+    ctx.fillStyle='rgba(55,118,75,.55)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,178); ctx.bezierCurveTo(80,148,200,140,320,165); ctx.bezierCurveTo(390,178,430,185,460,188); ctx.lineTo(460,H); ctx.fill();
+    // Right headland
+    ctx.fillStyle='rgba(48,105,68,.48)';
+    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,175); ctx.bezierCurveTo(1420,148,1300,158,1180,175); ctx.bezierCurveTo(1080,188,1020,185,980,180); ctx.lineTo(980,H); ctx.fill();
+
+    // Lighthouse — cleaned up, proper silhouette
+    const lx=210, lbase=192, ltop=100;
+    // Tower body — tapers slightly
+    ctx.fillStyle='rgba(245,240,228,.92)';
+    ctx.beginPath(); ctx.moveTo(lx-9,lbase); ctx.lineTo(lx-7,ltop+28); ctx.lineTo(lx+7,ltop+28); ctx.lineTo(lx+9,lbase); ctx.fill();
+    // Red stripe bands
+    ctx.fillStyle='rgba(200,50,50,.75)';
+    ctx.fillRect(lx-8,lbase-30,16,10); ctx.fillRect(lx-7,lbase-60,14,10);
+    // Lantern room box
+    ctx.fillStyle='rgba(60,70,80,.9)';
+    ctx.fillRect(lx-10,ltop+14,20,16);
+    // Conical cap
+    ctx.fillStyle='rgba(60,70,80,.95)';
+    ctx.beginPath(); ctx.moveTo(lx-11,ltop+14); ctx.lineTo(lx,ltop); ctx.lineTo(lx+11,ltop+14); ctx.fill();
+    // Animated light glow
+    const glowAlpha=0.45+Math.sin(T*2)*0.3;
+    const lg=ctx.createRadialGradient(lx,ltop+8,0,lx,ltop+8,28);
+    lg.addColorStop(0,`rgba(255,240,120,${glowAlpha})`); lg.addColorStop(1,'rgba(255,240,120,0)');
+    ctx.fillStyle=lg; ctx.beginPath(); ctx.arc(lx,ltop+8,28,0,Math.PI*2); ctx.fill();
+    // Light beam sweeping
+    const beamAng=T*0.7;
+    ctx.save(); ctx.globalAlpha=0.12; ctx.fillStyle='rgba(255,240,100,1)';
+    ctx.beginPath(); ctx.moveTo(lx,ltop+8);
+    ctx.lineTo(lx+Math.cos(beamAng)*220,ltop+8+Math.sin(beamAng)*220);
+    ctx.lineTo(lx+Math.cos(beamAng+0.18)*220,ltop+8+Math.sin(beamAng+0.18)*220);
+    ctx.fill(); ctx.restore();
   }
 
-  // REEF: layered underwater cliffs with coral beds at the horizon
+  // ── REEF ─────────────────────────────────────────────────────────────────
   if(map.id==='reef'){
-    // Deep underwater cliff wall — spans full width, goes to bottom
-    ctx.fillStyle='rgba(0,140,140,.45)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,215); ctx.quadraticCurveTo(380,185,760,210); ctx.quadraticCurveTo(1140,230,1510,205); ctx.lineTo(1510,H); ctx.fill();
-    // Second ridge, slightly lighter
-    ctx.fillStyle='rgba(0,160,150,.35)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,200); ctx.quadraticCurveTo(250,178,500,200); ctx.quadraticCurveTo(900,218,1200,195); ctx.lineTo(1510,200); ctx.lineTo(1510,H); ctx.fill();
-    // Fan corals — soft oval clusters at horizon line, spaced out
-    const fans=[{x:90,c:'#e84393',r:28},{x:260,c:'#ff7675',r:22},{x:450,c:'#fd79a8',r:30},{x:650,c:'#e84393',r:24},{x:830,c:'#ff7675',r:26},{x:1020,c:'#fd79a8',r:28},{x:1200,c:'#e84393',r:22},{x:1380,c:'#ff7675',r:26},{x:1490,c:'#fd79a8',r:20}];
+    // Seabed ridge — raised higher so corals stay above top wave
+    ctx.fillStyle='rgba(0,120,120,.55)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,175); ctx.quadraticCurveTo(380,150,760,172); ctx.quadraticCurveTo(1140,192,1510,168); ctx.lineTo(1510,H); ctx.fill();
+    ctx.fillStyle='rgba(0,150,140,.38)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,162); ctx.quadraticCurveTo(350,145,700,160); ctx.quadraticCurveTo(1050,175,1510,155); ctx.lineTo(1510,H); ctx.fill();
+    // Fan corals — raised to y=165
+    const fans=[{x:80,c:'#e84393',r:32},{x:220,c:'#ff7675',r:26},{x:390,c:'#fd79a8',r:34},{x:560,c:'#e84393',r:28},{x:730,c:'#00cec9',r:30},{x:900,c:'#fd79a8',r:32},{x:1070,c:'#ff7675',r:26},{x:1240,c:'#e84393',r:28},{x:1410,c:'#fd79a8',r:30}];
     for(const f of fans){
-      // stem
-      ctx.strokeStyle=f.c; ctx.lineWidth=4;
-      ctx.beginPath(); ctx.moveTo(f.x,215); ctx.lineTo(f.x,215-f.r*1.4); ctx.stroke();
-      // fan head — semi-circle
-      ctx.fillStyle=f.c+'bb';
-      ctx.beginPath(); ctx.arc(f.x,215-f.r*1.4,f.r,Math.PI,0); ctx.fill();
-      // inner detail lines
-      ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.lineWidth=1.5;
-      for(let a=0;a<5;a++){ const ang=Math.PI+a*(Math.PI/4); ctx.beginPath(); ctx.moveTo(f.x,215-f.r*1.4); ctx.lineTo(f.x+Math.cos(ang)*f.r,215-f.r*1.4+Math.sin(ang)*f.r); ctx.stroke(); }
+      const base=172;
+      ctx.strokeStyle=f.c; ctx.lineWidth=5;
+      ctx.beginPath(); ctx.moveTo(f.x,base); ctx.lineTo(f.x,base-f.r*1.6); ctx.stroke();
+      ctx.fillStyle=f.c+'cc';
+      ctx.beginPath(); ctx.arc(f.x,base-f.r*1.6,f.r,Math.PI,0); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=1.5;
+      for(let a=0;a<5;a++){ const ang=Math.PI+a*(Math.PI/4); ctx.beginPath(); ctx.moveTo(f.x,base-f.r*1.6); ctx.lineTo(f.x+Math.cos(ang)*f.r,base-f.r*1.6+Math.sin(ang)*f.r); ctx.stroke(); }
     }
-    // Scattered small bubble dots above coral line
-    ctx.fillStyle='rgba(255,255,255,.30)';
-    for(let i=0;i<14;i++){ ctx.beginPath(); ctx.arc(60+i*110,(170+i*9)%45+158,3+i%3,0,Math.PI*2); ctx.fill(); }
+    // Bubble wisps
+    ctx.fillStyle='rgba(255,255,255,.32)';
+    for(let i=0;i<18;i++){ ctx.beginPath(); ctx.arc(50+i*84,(145+i*11)%50+120,2+i%3,0,Math.PI*2); ctx.fill(); }
   }
 
-  // DEEP: jagged abyssal rock formations rising from pitch dark
+  // ── DEEP ─────────────────────────────────────────────────────────────────
   if(map.id==='deep'){
-    // Dark abyss base
-    ctx.fillStyle='rgba(5,12,40,.95)';
-    ctx.fillRect(0,195,W,H-195);
-    // Rock pillars — varied heights, organic silhouette
+    ctx.fillStyle='rgba(5,12,40,.95)'; ctx.fillRect(0,195,W,H-195);
     const pillars=[{x:60,w:55,h:65},{x:190,w:40,h:48},{x:320,w:70,h:80},{x:480,w:48,h:58},{x:650,w:62,h:72},{x:810,w:44,h:52},{x:970,w:68,h:78},{x:1130,w:50,h:62},{x:1290,w:58,h:68},{x:1420,w:45,h:55},{x:1490,w:35,h:42}];
     for(const p of pillars){
       ctx.fillStyle='rgba(12,22,60,.92)';
-      // Jagged top silhouette
-      ctx.beginPath();
-      ctx.moveTo(p.x-p.w/2,H);
-      ctx.lineTo(p.x-p.w/2,215-p.h+10);
-      ctx.lineTo(p.x-p.w*0.3,215-p.h-6);
-      ctx.lineTo(p.x-p.w*0.1,215-p.h+4);
-      ctx.lineTo(p.x,215-p.h-2);
-      ctx.lineTo(p.x+p.w*0.15,215-p.h+8);
-      ctx.lineTo(p.x+p.w*0.35,215-p.h-4);
-      ctx.lineTo(p.x+p.w/2,215-p.h+10);
-      ctx.lineTo(p.x+p.w/2,H);
-      ctx.fill();
+      ctx.beginPath(); ctx.moveTo(p.x-p.w/2,H); ctx.lineTo(p.x-p.w/2,215-p.h+10); ctx.lineTo(p.x-p.w*0.3,215-p.h-6); ctx.lineTo(p.x-p.w*0.1,215-p.h+4); ctx.lineTo(p.x,215-p.h-2); ctx.lineTo(p.x+p.w*0.15,215-p.h+8); ctx.lineTo(p.x+p.w*0.35,215-p.h-4); ctx.lineTo(p.x+p.w/2,215-p.h+10); ctx.lineTo(p.x+p.w/2,H); ctx.fill();
     }
-    // Bioluminescent glow dots at pillar tips
     for(const p of pillars){
       const gx=ctx.createRadialGradient(p.x,215-p.h,0,p.x,215-p.h,22);
       gx.addColorStop(0,'rgba(80,160,255,.5)'); gx.addColorStop(1,'rgba(80,160,255,0)');
@@ -1948,48 +1960,93 @@ function drawBackground(dt){
     }
   }
 
-  // LAVA: volcano + streams to waterline
+  // ── LAVA ─────────────────────────────────────────────────────────────────
   if(map.id==='lava'){
-    ctx.fillStyle='rgba(55,25,15,.92)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,230); ctx.lineTo(180,70); ctx.lineTo(360,230); ctx.lineTo(360,H); ctx.fill();
-    ctx.fillStyle='rgba(45,20,10,.85)';
-    ctx.beginPath(); ctx.moveTo(1100,H); ctx.lineTo(1100,240); ctx.lineTo(1260,120); ctx.lineTo(1420,240); ctx.lineTo(1420,H); ctx.fill();
-    ctx.fillStyle='rgba(255,80,0,.8)';
-    ctx.beginPath(); ctx.moveTo(155,100); ctx.lineTo(180,68); ctx.lineTo(205,100); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(1240,145); ctx.lineTo(1260,118); ctx.lineTo(1280,145); ctx.fill();
-    const lavGrad=ctx.createLinearGradient(0,68,0,215); lavGrad.addColorStop(0,'rgba(255,100,0,.85)'); lavGrad.addColorStop(1,'rgba(200,40,0,.15)');
-    ctx.fillStyle=lavGrad; ctx.fillRect(168,68,24,152);
-    const lavGrad2=ctx.createLinearGradient(0,118,0,245); lavGrad2.addColorStop(0,'rgba(255,100,0,.75)'); lavGrad2.addColorStop(1,'rgba(200,40,0,.1)');
-    ctx.fillStyle=lavGrad2; ctx.fillRect(1250,118,18,130);
-    ctx.fillStyle='rgba(80,60,50,.35)';
-    for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(170+i*14,50-i*12,14+i*6,0,Math.PI*2); ctx.fill(); }
-  }
-
-  // ICE: glacier shelves descending to water, floating iceberg chunks
-  if(map.id==='ice'){
-    // Left glacier shelf — solid, goes to bottom
-    ctx.fillStyle='rgba(210,235,255,.85)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,175); ctx.lineTo(65,155); ctx.lineTo(160,170); ctx.lineTo(270,148); ctx.lineTo(380,172); ctx.lineTo(440,185); ctx.lineTo(440,H); ctx.fill();
-    // Inner shadowed face
-    ctx.fillStyle='rgba(150,200,240,.4)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,178); ctx.lineTo(65,160); ctx.lineTo(160,175); ctx.lineTo(270,155); ctx.lineTo(380,176); ctx.lineTo(440,188); ctx.lineTo(440,H); ctx.fill();
-    // Right glacier shelf
-    ctx.fillStyle='rgba(195,228,255,.80)';
-    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,178); ctx.lineTo(1450,155); ctx.lineTo(1340,172); ctx.lineTo(1220,158); ctx.lineTo(1110,180); ctx.lineTo(1080,H); ctx.fill();
-    ctx.fillStyle='rgba(150,200,240,.35)';
-    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,182); ctx.lineTo(1450,160); ctx.lineTo(1340,176); ctx.lineTo(1220,162); ctx.lineTo(1110,183); ctx.lineTo(1080,H); ctx.fill();
-    // Floating icebergs — chunky, above waterline
-    const bergs=[{x:550,w:90},{x:740,w:70},{x:920,w:85}];
-    for(const b of bergs){
-      ctx.fillStyle='rgba(235,248,255,.90)';
-      ctx.beginPath();
-      ctx.moveTo(b.x-b.w/2,202); ctx.lineTo(b.x-b.w*0.4,185); ctx.lineTo(b.x-b.w*0.1,175); ctx.lineTo(b.x+b.w*0.15,180); ctx.lineTo(b.x+b.w/2,196); ctx.fill();
-      ctx.fillStyle='rgba(160,210,240,.5)';
-      ctx.beginPath(); ctx.moveTo(b.x-b.w*0.35,200); ctx.lineTo(b.x-b.w*0.1,190); ctx.lineTo(b.x+b.w*0.2,198); ctx.fill();
+    // Left volcano
+    ctx.fillStyle='rgba(55,25,15,.95)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,230); ctx.lineTo(180,62); ctx.lineTo(360,230); ctx.lineTo(360,H); ctx.fill();
+    // Right volcano
+    ctx.fillStyle='rgba(45,20,10,.88)';
+    ctx.beginPath(); ctx.moveTo(1100,H); ctx.lineTo(1100,242); ctx.lineTo(1260,112); ctx.lineTo(1420,242); ctx.lineTo(1420,H); ctx.fill();
+    // Lava streams
+    const lg1=ctx.createLinearGradient(0,62,0,215); lg1.addColorStop(0,'rgba(255,110,0,.9)'); lg1.addColorStop(1,'rgba(200,40,0,.1)');
+    ctx.fillStyle=lg1; ctx.fillRect(168,62,26,158);
+    const lg2=ctx.createLinearGradient(0,112,0,248); lg2.addColorStop(0,'rgba(255,100,0,.8)'); lg2.addColorStop(1,'rgba(200,40,0,.08)');
+    ctx.fillStyle=lg2; ctx.fillRect(1250,112,20,138);
+    // Crater glow
+    const cg1=ctx.createRadialGradient(181,62,0,181,62,30); cg1.addColorStop(0,'rgba(255,200,0,.9)'); cg1.addColorStop(0.4,'rgba(255,80,0,.6)'); cg1.addColorStop(1,'rgba(200,0,0,0)');
+    ctx.fillStyle=cg1; ctx.beginPath(); ctx.arc(181,62,30,0,Math.PI*2); ctx.fill();
+    const cg2=ctx.createRadialGradient(1261,112,0,1261,112,24); cg2.addColorStop(0,'rgba(255,200,0,.85)'); cg2.addColorStop(0.4,'rgba(255,80,0,.5)'); cg2.addColorStop(1,'rgba(200,0,0,0)');
+    ctx.fillStyle=cg2; ctx.beginPath(); ctx.arc(1261,112,24,0,Math.PI*2); ctx.fill();
+    // Animated smoke puffs — two vents
+    const smokePuffs=[
+      {vx:181,vy:62},{vx:1261,vy:112}
+    ];
+    for(const v of smokePuffs){
+      for(let s=0;s<4;s++){
+        const phase=(T*0.4+s*0.7)%2.8;
+        const sy=v.vy - phase*38;
+        const sr=10+phase*14;
+        const alpha=Math.max(0,(0.55-phase*0.18));
+        const drift=Math.sin(T*0.8+s)*14*phase;
+        const sg=ctx.createRadialGradient(v.vx+drift,sy,0,v.vx+drift,sy,sr);
+        sg.addColorStop(0,`rgba(80,65,60,${alpha})`); sg.addColorStop(1,'rgba(60,50,45,0)');
+        ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(v.vx+drift,sy,sr,0,Math.PI*2); ctx.fill();
+      }
     }
   }
 
-  // MANGROVE: twisted root trees
+  // ── ICE ──────────────────────────────────────────────────────────────────
+  if(map.id==='ice'){
+    // Left glacier — multi-face with crevasse shadows
+    ctx.fillStyle='rgba(220,242,255,.90)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,162); ctx.lineTo(55,140); ctx.lineTo(130,155); ctx.lineTo(220,132); ctx.lineTo(340,148); ctx.lineTo(430,162); ctx.lineTo(460,H); ctx.fill();
+    ctx.fillStyle='rgba(140,195,235,.45)'; // shadow face
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,165); ctx.lineTo(55,144); ctx.lineTo(130,158); ctx.lineTo(220,136); ctx.lineTo(340,152); ctx.lineTo(430,165); ctx.lineTo(460,H); ctx.fill();
+    // Crevasse lines on left glacier
+    ctx.strokeStyle='rgba(100,160,210,.55)'; ctx.lineWidth=2;
+    [[80,155,95,185],[175,140,185,172],[300,148,308,178]].forEach(([x1,y1,x2,y2])=>{
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    });
+    // Right glacier
+    ctx.fillStyle='rgba(205,232,255,.85)';
+    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,165); ctx.lineTo(1455,140); ctx.lineTo(1340,158); ctx.lineTo(1210,142); ctx.lineTo(1100,164); ctx.lineTo(1065,H); ctx.fill();
+    ctx.fillStyle='rgba(140,195,235,.38)';
+    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(W,168); ctx.lineTo(1455,144); ctx.lineTo(1340,162); ctx.lineTo(1210,146); ctx.lineTo(1100,167); ctx.lineTo(1065,H); ctx.fill();
+
+    // Floating icebergs — more realistic multi-faceted
+    const bergs=[
+      {x:520,peaks:[[-52,0],[-38,-22],[-18,-36],[0,-44],[14,-30],[30,-16],[48,0]]},
+      {x:740,peaks:[[-42,0],[-28,-18],[-8,-30],[8,-36],[22,-22],[38,0]]},
+      {x:960,peaks:[[-48,0],[-32,-20],[-12,-34],[6,-40],[20,-28],[42,-10],[54,0]]},
+    ];
+    for(const b of bergs){
+      const by=200;
+      // Main white face
+      ctx.fillStyle='rgba(232,248,255,.95)';
+      ctx.beginPath(); ctx.moveTo(b.x+b.peaks[0][0],by);
+      b.peaks.forEach(([dx,dy])=>ctx.lineTo(b.x+dx,by+dy));
+      ctx.lineTo(b.x+b.peaks[b.peaks.length-1][0],by); ctx.fill();
+      // Blue-shadow face (right side darker)
+      ctx.fillStyle='rgba(150,205,240,.55)';
+      ctx.beginPath();
+      const half=Math.floor(b.peaks.length/2);
+      ctx.moveTo(b.x+b.peaks[half][0],by+b.peaks[half][1]);
+      for(let k=half+1;k<b.peaks.length;k++) ctx.lineTo(b.x+b.peaks[k][0],by+b.peaks[k][1]);
+      ctx.lineTo(b.x+b.peaks[b.peaks.length-1][0],by); ctx.fill();
+      // Waterline reflection shimmer
+      const rg=ctx.createLinearGradient(b.x-55,by,b.x-55,by+18);
+      rg.addColorStop(0,'rgba(200,235,255,.35)'); rg.addColorStop(1,'rgba(200,235,255,0)');
+      ctx.fillStyle=rg; ctx.fillRect(b.x+b.peaks[0][0],by,b.peaks[b.peaks.length-1][0]-b.peaks[0][0],18);
+    }
+    // Snowflake/frost sparkles at glacier edges
+    ctx.fillStyle='rgba(255,255,255,.8)';
+    [[45,148],[138,162],[235,138],[355,152],[1110,168],[1215,148],[1342,162],[1458,145]].forEach(([sx,sy])=>{
+      ctx.beginPath(); ctx.arc(sx,sy,2.5,0,Math.PI*2); ctx.fill();
+    });
+  }
+
+  // ── MANGROVE ─────────────────────────────────────────────────────────────
   if(map.id==='mangrove'){
     const trees=[{x:80},{x:350},{x:700},{x:1050},{x:1380}];
     for(const t of trees){
@@ -2006,98 +2063,239 @@ function drawBackground(dt){
     ctx.fillStyle='rgba(20,60,30,.45)'; ctx.fillRect(0,205,W,H-205);
   }
 
-  // CRYSTAL: elegant low spire clusters at the water horizon
+  // ── CRYSTAL ──────────────────────────────────────────────────────────────
   if(map.id==='crystal'){
-    // Glowing underwater shelf
     const shelfGrad=ctx.createLinearGradient(0,190,0,H); shelfGrad.addColorStop(0,'rgba(80,230,240,.32)'); shelfGrad.addColorStop(1,'rgba(20,180,200,.55)');
     ctx.fillStyle=shelfGrad;
     ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,210); ctx.quadraticCurveTo(500,190,755,207); ctx.quadraticCurveTo(1100,222,1510,200); ctx.lineTo(1510,H); ctx.fill();
-    // Spire clusters — short, elegant, clustered in groups
     const groups=[{cx:130},{cx:360},{cx:620},{cx:880},{cx:1120},{cx:1380}];
     for(const g of groups){
-      // Three spires per cluster: center tall, two shorter flanking
       const spires=[{dx:-22,h:52,w:9,c:'rgba(160,250,255,.82)'},{dx:0,h:70,w:11,c:'rgba(130,240,255,.9)'},{dx:20,h:46,w:8,c:'rgba(180,255,250,.75)'}];
       for(const s of spires){
         const bx=g.cx+s.dx, by=210;
         ctx.fillStyle=s.c;
         ctx.beginPath(); ctx.moveTo(bx-s.w,by); ctx.lineTo(bx-s.w*0.25,by-s.h); ctx.lineTo(bx,by-s.h-8); ctx.lineTo(bx+s.w*0.25,by-s.h); ctx.lineTo(bx+s.w,by); ctx.fill();
-        // bright tip glint
         ctx.fillStyle='rgba(255,255,255,.75)';
         ctx.beginPath(); ctx.moveTo(bx-2,by-s.h-2); ctx.lineTo(bx,by-s.h-10); ctx.lineTo(bx+2,by-s.h-2); ctx.fill();
       }
     }
-    // Soft shimmer glow at waterline
     const shimGrad=ctx.createLinearGradient(0,185,0,215); shimGrad.addColorStop(0,'rgba(130,255,255,.0)'); shimGrad.addColorStop(1,'rgba(130,255,255,.18)');
     ctx.fillStyle=shimGrad; ctx.fillRect(0,185,W,30);
   }
 
-  // STORM: dark sea cliffs + lightning + clouds
+  // ── STORM ────────────────────────────────────────────────────────────────
   if(map.id==='storm'){
-    ctx.fillStyle='rgba(25,35,55,.9)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,185); ctx.lineTo(90,150); ctx.lineTo(200,175); ctx.lineTo(320,140); ctx.lineTo(440,165); ctx.lineTo(440,H); ctx.fill();
-    ctx.fillStyle='rgba(20,28,48,.8)';
-    ctx.beginPath(); ctx.moveTo(1050,H); ctx.lineTo(1050,170); ctx.lineTo(1180,135); ctx.lineTo(1310,160); ctx.lineTo(1430,145); ctx.lineTo(1510,168); ctx.lineTo(1510,H); ctx.fill();
-    ctx.strokeStyle='rgba(255,255,180,.7)'; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.moveTo(750,30); ctx.lineTo(735,90); ctx.lineTo(755,90); ctx.lineTo(738,155); ctx.stroke();
-    ctx.fillStyle='rgba(50,60,80,.65)';
-    for(let i=0;i<5;i++){ ctx.beginPath(); ctx.arc(180+i*280,55+i%2*20,55+i*8,0,Math.PI*2); ctx.fill(); }
+    // Sea cliffs
+    ctx.fillStyle='rgba(22,32,52,.92)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,180); ctx.lineTo(80,148); ctx.lineTo(195,170); ctx.lineTo(310,138); ctx.lineTo(435,162); ctx.lineTo(460,H); ctx.fill();
+    ctx.fillStyle='rgba(18,26,44,.85)';
+    ctx.beginPath(); ctx.moveTo(1040,H); ctx.lineTo(1040,168); ctx.lineTo(1175,132); ctx.lineTo(1305,156); ctx.lineTo(1428,140); ctx.lineTo(1510,165); ctx.lineTo(1510,H); ctx.fill();
+    // Storm clouds — volumetric layered
+    const cloudCols=['rgba(38,48,70,.82)','rgba(48,58,80,.70)','rgba(30,40,60,.88)'];
+    const clouds=[{x:120,y:48,r:62},{x:310,y:35,r:72},{x:520,y:55,r:58},{x:730,y:28,r:78},{x:960,y:45,r:65},{x:1180,y:38,r:70},{x:1390,y:52,r:60}];
+    for(let c of clouds){
+      ctx.fillStyle=cloudCols[clouds.indexOf(c)%3];
+      ctx.beginPath(); ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(c.x+c.r*0.5,c.y+8,c.r*0.72,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(c.x-c.r*0.45,c.y+10,c.r*0.65,0,Math.PI*2); ctx.fill();
+    }
+    // Animated lightning flashes — two bolts, timed differently
+    const bolts=[
+      {x:480, period:3.7, offset:0},
+      {x:980, period:5.1, offset:1.8},
+      {x:230, period:6.4, offset:3.2},
+    ];
+    for(const b of bolts){
+      const phase=(T+b.offset)%b.period;
+      if(phase<0.12){
+        const alpha=phase<0.06?phase/0.06:(0.12-phase)/0.06;
+        // Whole-sky flash
+        ctx.save(); ctx.globalAlpha=alpha*0.18;
+        ctx.fillStyle='rgba(200,220,255,1)'; ctx.fillRect(0,0,W,H);
+        ctx.restore();
+        // Bolt shape
+        ctx.save(); ctx.globalAlpha=alpha*0.9;
+        ctx.strokeStyle='rgba(220,240,255,1)'; ctx.lineWidth=3;
+        ctx.shadowColor='rgba(180,220,255,.9)'; ctx.shadowBlur=18;
+        ctx.beginPath();
+        ctx.moveTo(b.x,20); ctx.lineTo(b.x-14,72); ctx.lineTo(b.x+8,72); ctx.lineTo(b.x-18,148); ctx.stroke();
+        ctx.lineWidth=1.5; ctx.globalAlpha=alpha*0.5;
+        ctx.beginPath(); ctx.moveTo(b.x-14,72); ctx.lineTo(b.x-30,118); ctx.stroke();
+        ctx.restore();
+      }
+    }
   }
 
-  // JUNGLE: dense canopy + vines
+  // ── JUNGLE ───────────────────────────────────────────────────────────────
   if(map.id==='jungle'){
-    const jColors=['rgba(10,90,30,.9)','rgba(15,110,35,.8)','rgba(8,75,25,.85)'];
-    const jTrees=[{x:0,w:200},{x:160,w:180},{x:330,w:200},{x:500,w:190},{x:680,w:210},{x:870,w:185},{x:1040,w:200},{x:1220,w:190},{x:1390,w:200}];
-    const jH=[160,185,155,170,150,180,160,175,165];
-    jTrees.forEach((t,i)=>{
-      ctx.fillStyle=jColors[i%3];
-      ctx.beginPath(); ctx.moveTo(t.x,H); ctx.lineTo(t.x,240); ctx.quadraticCurveTo(t.x+t.w/2,210-jH[i],t.x+t.w,240); ctx.lineTo(t.x+t.w,H); ctx.fill();
+    // Dense layered canopy — darker back layer, brighter front
+    const jBack=['rgba(5,55,18,.95)','rgba(8,65,22,.90)','rgba(4,48,15,.92)'];
+    const jFront=['rgba(12,100,35,.90)','rgba(18,120,42,.85)','rgba(9,85,28,.88)','rgba(20,110,38,.82)'];
+    // Back layer — taller, darker
+    const backTrees=[{x:0,w:220},{x:180,w:200},{x:370,w:215},{x:555,w:205},{x:740,w:220},{x:925,w:200},{x:1105,w:215},{x:1285,w:205},{x:1460,w:200}];
+    const backH=[220,240,210,230,215,235,220,225,218];
+    backTrees.forEach((t,i)=>{
+      ctx.fillStyle=jBack[i%3];
+      // Rounded canopy shape
+      const cx=t.x+t.w/2, cy=250-backH[i];
+      ctx.beginPath(); ctx.moveTo(t.x,H); ctx.lineTo(t.x,240);
+      ctx.quadraticCurveTo(t.x+t.w*0.15,cy+20,cx-t.w*0.25,cy+10);
+      ctx.quadraticCurveTo(cx-t.w*0.1,cy-15,cx,cy);
+      ctx.quadraticCurveTo(cx+t.w*0.1,cy-15,cx+t.w*0.25,cy+10);
+      ctx.quadraticCurveTo(t.x+t.w*0.85,cy+20,t.x+t.w,240);
+      ctx.lineTo(t.x+t.w,H); ctx.fill();
     });
-    ctx.strokeStyle='rgba(30,100,20,.6)'; ctx.lineWidth=3;
+    // Front layer — shorter, brighter, varied shapes
+    const frontTrees=[{x:-20,w:170},{x:140,w:155},{x:300,w:165},{x:460,w:160},{x:625,w:168},{x:790,w:155},{x:950,w:162},{x:1110,w:158},{x:1270,w:165},{x:1430,w:160}];
+    const frontH=[165,180,155,172,160,178,162,170,158,175];
+    frontTrees.forEach((t,i)=>{
+      ctx.fillStyle=jFront[i%4];
+      const cx=t.x+t.w/2, cy=250-frontH[i];
+      ctx.beginPath(); ctx.moveTo(t.x,H); ctx.lineTo(t.x,245);
+      ctx.quadraticCurveTo(cx-t.w*0.3,cy+25,cx-t.w*0.12,cy+5);
+      ctx.quadraticCurveTo(cx,cy-8,cx+t.w*0.12,cy+5);
+      ctx.quadraticCurveTo(cx+t.w*0.3,cy+25,t.x+t.w,245);
+      ctx.lineTo(t.x+t.w,H); ctx.fill();
+      // Lighter highlight fringe on top edge
+      ctx.fillStyle='rgba(40,160,60,.22)';
+      ctx.beginPath(); ctx.arc(cx,cy+5,t.w*0.28,Math.PI,0); ctx.fill();
+    });
+    // Hanging vines — curved, with leaf bulges
+    ctx.strokeStyle='rgba(20,90,15,.65)'; ctx.lineWidth=2.5;
+    for(let i=0;i<18;i++){
+      const vx=40+i*84, swayAmt=Math.sin(T*0.4+i*1.1)*8;
+      ctx.beginPath(); ctx.moveTo(vx,0); ctx.bezierCurveTo(vx+swayAmt+15,60,vx+swayAmt-10,130,vx+swayAmt+5,195); ctx.stroke();
+      // Small leaf on vine
+      ctx.fillStyle='rgba(30,130,25,.55)';
+      ctx.beginPath(); ctx.ellipse(vx+swayAmt+5,130,7,4,0.6,0,Math.PI*2); ctx.fill();
+    }
+    // Firefly-like sparkles deep in canopy
     for(let i=0;i<12;i++){
-      const vx=80+i*125;
-      ctx.beginPath(); ctx.moveTo(vx,50); ctx.quadraticCurveTo(vx+20,130,vx,190); ctx.stroke();
+      const fx=(i*317+80)%W, fy=30+i*14;
+      const fa=0.3+Math.sin(T*1.8+i*2.3)*0.28;
+      ctx.fillStyle=`rgba(200,255,100,${fa})`;
+      ctx.beginPath(); ctx.arc(fx,fy,2,0,Math.PI*2); ctx.fill();
     }
+    // Ground mist at waterline
+    const mistG=ctx.createLinearGradient(0,170,0,215); mistG.addColorStop(0,'rgba(80,200,80,0)'); mistG.addColorStop(1,'rgba(50,160,50,.22)');
+    ctx.fillStyle=mistG; ctx.fillRect(0,170,W,45);
   }
 
-  // TOXIC: glowing sludge banks and bubbles
+  // ── TOXIC ────────────────────────────────────────────────────────────────
   if(map.id==='toxic'){
-    ctx.fillStyle='rgba(40,80,0,.85)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,195); ctx.quadraticCurveTo(200,170,400,195); ctx.lineTo(400,H); ctx.fill();
-    ctx.fillStyle='rgba(35,70,0,.8)';
-    ctx.beginPath(); ctx.moveTo(1100,H); ctx.lineTo(1100,188); ctx.quadraticCurveTo(1300,162,1510,188); ctx.lineTo(1510,H); ctx.fill();
-    for(let i=0;i<15;i++){
-      ctx.fillStyle=`rgba(120,255,0,${0.25+Math.sin(i*0.9)*0.15})`;
-      ctx.beginPath(); ctx.arc(80+i*100,(170+i*12)%70+155,6+i%5,0,Math.PI*2); ctx.fill();
+    // Sludge banks
+    ctx.fillStyle='rgba(38,75,0,.88)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,188); ctx.quadraticCurveTo(200,162,420,188); ctx.lineTo(420,H); ctx.fill();
+    ctx.fillStyle='rgba(32,65,0,.82)';
+    ctx.beginPath(); ctx.moveTo(1080,H); ctx.lineTo(1080,182); ctx.quadraticCurveTo(1295,155,1510,182); ctx.lineTo(1510,H); ctx.fill();
+    // Animated rising bubbles — each has its own phase
+    const bubbleDefs=[
+      {x:95,period:3.2,size:7},{x:190,period:2.8,size:5},{x:300,period:3.8,size:8},
+      {x:415,period:2.5,size:6},{x:520,period:3.5,size:9},{x:635,period:2.9,size:5},
+      {x:740,period:4.1,size:7},{x:850,period:3.0,size:6},{x:960,period:2.7,size:8},
+      {x:1065,period:3.6,size:5},{x:1170,period:2.4,size:7},{x:1280,period:3.3,size:6},
+      {x:1380,period:2.6,size:8},{x:1460,period:3.9,size:5},
+    ];
+    for(const b of bubbleDefs){
+      const phase=(T*0.5)%b.period/b.period; // 0–1 cycle
+      const by=210-phase*90; // rise from waterline upward
+      const alpha=phase<0.15?phase/0.15:phase>0.80?(1-phase)/0.20:1;
+      const wobble=Math.sin(T*2.2+b.x)*4;
+      ctx.fillStyle=`rgba(120,255,0,${alpha*0.55})`;
+      ctx.beginPath(); ctx.arc(b.x+wobble,by,b.size*(0.8+phase*0.3),0,Math.PI*2); ctx.fill();
+      // Inner highlight
+      ctx.fillStyle=`rgba(200,255,80,${alpha*0.35})`;
+      ctx.beginPath(); ctx.arc(b.x+wobble-b.size*0.3,by-b.size*0.3,b.size*0.35,0,Math.PI*2); ctx.fill();
     }
-    const toxGrad=ctx.createLinearGradient(0,150,0,220); toxGrad.addColorStop(0,'rgba(100,255,0,.0)'); toxGrad.addColorStop(1,'rgba(100,255,0,.18)');
-    ctx.fillStyle=toxGrad; ctx.fillRect(0,150,W,70);
+    // Green waterline glow
+    const toxGrad=ctx.createLinearGradient(0,145,0,215); toxGrad.addColorStop(0,'rgba(100,255,0,0)'); toxGrad.addColorStop(1,'rgba(100,255,0,.22)');
+    ctx.fillStyle=toxGrad; ctx.fillRect(0,145,W,70);
   }
 
-  // DESERT: sand dunes and mesa
+  // ── DESERT ───────────────────────────────────────────────────────────────
   if(map.id==='desert'){
-    ctx.fillStyle='rgba(210,150,60,.8)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,205); ctx.quadraticCurveTo(250,155,500,205); ctx.quadraticCurveTo(750,245,1000,195); ctx.quadraticCurveTo(1250,155,1510,200); ctx.lineTo(1510,H); ctx.fill();
-    ctx.fillStyle='rgba(230,170,80,.6)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,210); ctx.quadraticCurveTo(380,175,620,210); ctx.lineTo(1510,205); ctx.lineTo(1510,H); ctx.fill();
-    ctx.fillStyle='rgba(180,120,40,.7)';
-    ctx.beginPath(); ctx.moveTo(700,H); ctx.lineTo(700,165); ctx.lineTo(740,145); ctx.lineTo(850,145); ctx.lineTo(890,165); ctx.lineTo(890,H); ctx.fill();
-    ctx.fillStyle='rgba(30,110,20,.85)'; ctx.fillRect(142,125,14,90); ctx.fillRect(108,148,38,12); ctx.fillRect(96,138,22,12); ctx.fillRect(160,158,22,12);
+    // Back dunes — taller, lighter
+    ctx.fillStyle='rgba(225,170,75,.75)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,175); ctx.bezierCurveTo(180,115,380,130,560,168); ctx.bezierCurveTo(740,205,920,125,1130,148); ctx.bezierCurveTo(1300,165,1430,132,1510,155); ctx.lineTo(1510,H); ctx.fill();
+    // Front dunes — warmer, slightly darker
+    ctx.fillStyle='rgba(210,148,55,.88)';
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,192); ctx.bezierCurveTo(220,148,450,135,650,175); ctx.bezierCurveTo(820,208,1020,145,1240,168); ctx.bezierCurveTo(1380,182,1460,162,1510,172); ctx.lineTo(1510,H); ctx.fill();
+    // Mesa/butte — flat-top rock formation
+    ctx.fillStyle='rgba(175,108,35,.85)';
+    ctx.beginPath(); ctx.moveTo(680,H); ctx.lineTo(680,148); ctx.lineTo(710,128); ctx.lineTo(870,128); ctx.lineTo(900,148); ctx.lineTo(900,H); ctx.fill();
+    // Mesa top cap (lighter)
+    ctx.fillStyle='rgba(210,165,75,.7)';
+    ctx.fillRect(710,128,160,8);
+
+    // Cactus helper
+    function drawCactus(cx,base){
+      const grn='rgba(28,108,18,.90)';
+      ctx.fillStyle=grn;
+      // Main trunk
+      ctx.beginPath(); ctx.roundRect(cx-7,base-85,14,85,4); ctx.fill();
+      // Left arm
+      ctx.beginPath(); ctx.roundRect(cx-28,base-68,14,38,4); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(cx-28,base-68,28,12,4); ctx.fill();
+      // Right arm (higher)
+      ctx.beginPath(); ctx.roundRect(cx+14,base-55,14,28,4); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(cx+7,base-55,21,12,4); ctx.fill();
+      // Thorns
+      ctx.fillStyle='rgba(220,200,150,.75)';
+      [[cx-3,base-82],[cx+4,base-72],[cx-5,base-60],[cx+5,base-48],[cx-3,base-35]].forEach(([tx,ty])=>{
+        ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(tx-5,ty-6); ctx.lineTo(tx+5,ty-6); ctx.fill();
+      });
+    }
+    drawCactus(148,205);
+    drawCactus(960,175);
+
+    // Dinosaur skull on left dune
+    const skx=330, sky2=162;
+    ctx.fillStyle='rgba(235,215,170,.88)';
+    // Cranium
+    ctx.beginPath(); ctx.ellipse(skx,sky2,22,16,0,0,Math.PI*2); ctx.fill();
+    // Snout
+    ctx.beginPath(); ctx.moveTo(skx+10,sky2+2); ctx.lineTo(skx+36,sky2+8); ctx.lineTo(skx+34,sky2+16); ctx.lineTo(skx+10,sky2+12); ctx.fill();
+    // Eye socket
+    ctx.fillStyle='rgba(80,60,40,.8)';
+    ctx.beginPath(); ctx.ellipse(skx+4,sky2-2,7,6,0,0,Math.PI*2); ctx.fill();
+    // Nostril
+    ctx.beginPath(); ctx.ellipse(skx+26,sky2+8,3,2.5,0,0,Math.PI*2); ctx.fill();
+    // Teeth
+    ctx.fillStyle='rgba(235,215,170,.88)';
+    ctx.strokeStyle='rgba(160,130,80,.6)'; ctx.lineWidth=1;
+    [skx+14,skx+19,skx+24,skx+29].forEach((tx,ti)=>{
+      ctx.beginPath(); ctx.moveTo(tx,sky2+15); ctx.lineTo(tx-3,sky2+22); ctx.lineTo(tx+3,sky2+22); ctx.fill();
+    });
+    // Jaw bone
+    ctx.strokeStyle='rgba(200,180,130,.7)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(skx+10,sky2+14); ctx.lineTo(skx+36,sky2+17); ctx.stroke();
   }
 
-  // MOON: lunar surface with craters and stars
+  // ── MOON ─────────────────────────────────────────────────────────────────
   if(map.id==='moon'){
-    ctx.fillStyle='rgba(100,110,140,.8)';
-    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,192); ctx.quadraticCurveTo(300,165,600,192); ctx.quadraticCurveTo(900,215,1200,185); ctx.lineTo(1510,195); ctx.lineTo(1510,H); ctx.fill();
-    ctx.strokeStyle='rgba(60,70,100,.7)'; ctx.lineWidth=3;
-    for(let i=0;i<5;i++){ ctx.beginPath(); ctx.arc(150+i*300,193,18+i*4,Math.PI,0); ctx.stroke(); }
-    ctx.fillStyle='rgba(255,255,255,.85)';
-    const stars=[[120,40],[380,25],[620,55],[840,30],[1050,18],[1280,45],[1450,35],[240,70],[700,20],[1150,60]];
-    for(const s of stars){ ctx.beginPath(); ctx.arc(s[0],s[1],1.5+Math.sin(s[0])*0.5,0,Math.PI*2); ctx.fill(); }
+    // Stars (twinkling)
+    const stars=[[120,40,1.6],[380,25,1.2],[620,55,1.8],[840,30,1.4],[1050,18,1.0],[1280,45,1.5],[1450,35,1.3],[240,70,1.1],[700,20,1.7],[1150,60,1.2],[440,42,1.0],[900,15,1.6],[1350,28,1.3],[160,15,0.9],[780,50,1.4]];
+    for(const s of stars){
+      const a=0.6+Math.sin(T*1.2+s[0]*0.05)*0.4;
+      ctx.fillStyle=`rgba(255,255,255,${a})`;
+      ctx.beginPath(); ctx.arc(s[0],s[1],s[2],0,Math.PI*2); ctx.fill();
+    }
+    // Large Moon in top right
+    const mx=1320,my=78,mr=54;
+    const moonGlow=ctx.createRadialGradient(mx,my,0,mx,my,mr+30);
+    moonGlow.addColorStop(0,'rgba(220,235,255,.0)'); moonGlow.addColorStop(0.5,'rgba(180,210,255,.08)'); moonGlow.addColorStop(1,'rgba(180,210,255,0)');
+    ctx.fillStyle=moonGlow; ctx.beginPath(); ctx.arc(mx,my,mr+30,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(232,240,255,.96)'; ctx.beginPath(); ctx.arc(mx,my,mr,0,Math.PI*2); ctx.fill();
+    // Crater details
+    ctx.fillStyle='rgba(190,205,230,.6)';
+    [[mx-18,my+10,9],[mx+16,my-12,7],[mx+5,my+22,5],[mx-28,my-8,5]].forEach(([cx2,cy2,cr])=>{
+      ctx.beginPath(); ctx.arc(cx2,cy2,cr,0,Math.PI*2); ctx.fill();
+    });
   }
 
-  // VOID: dark spires and reality tears
+  // ── VOID ─────────────────────────────────────────────────────────────────
   if(map.id==='void'){
-    ctx.fillStyle='rgba(30,0,60,.95)';
+    ctx.fillStyle='rgba(28,0,58,.96)';
     const spireArr=[[80,60,160],[250,45,180],[470,75,145],[720,55,170],[980,70,155],[1230,50,175],[1450,65,165]];
     for(const s of spireArr){
       ctx.beginPath(); ctx.moveTo(s[0]-s[1]/2,H); ctx.lineTo(s[0]-s[1]*0.15,s[2]); ctx.lineTo(s[0],s[2]-20); ctx.lineTo(s[0]+s[1]*0.15,s[2]); ctx.lineTo(s[0]+s[1]/2,H); ctx.fill();
@@ -2110,18 +2308,75 @@ function drawBackground(dt){
     }
     ctx.fillStyle='rgba(200,160,255,.9)';
     for(let i=0;i<20;i++){ ctx.beginPath(); ctx.arc(i*78+10,10+i%5*18,1+i%3,0,Math.PI*2); ctx.fill(); }
+
+    // Black hole — slowly rotating accretion disk + event horizon
+    const bhx=1320, bhy=78, bhR=42;
+    const bhAngle=T*0.22; // slow rotation
+    ctx.save();
+    ctx.translate(bhx,bhy);
+    ctx.rotate(bhAngle);
+    // Outer accretion disk layers
+    const diskColors=[
+      [62,  'rgba(255,140,20,.18)', 'rgba(255,60,0,.0)'],
+      [50,  'rgba(255,100,10,.28)', 'rgba(200,30,0,.0)'],
+      [44,  'rgba(200,60,5,.35)',   'rgba(150,20,0,.0)'],
+    ];
+    for(const [r,c0,c1] of diskColors){
+      const dg=ctx.createRadialGradient(0,0,bhR-4,0,0,r);
+      dg.addColorStop(0,c0); dg.addColorStop(1,c1);
+      ctx.fillStyle=dg;
+      ctx.beginPath(); ctx.ellipse(0,0,r,r*0.32,0,0,Math.PI*2); ctx.fill();
+    }
+    // Bright inner ring (hot plasma)
+    ctx.strokeStyle='rgba(255,200,80,.55)'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.ellipse(0,0,bhR+4,bhR*0.28,0,0,Math.PI*2); ctx.stroke();
+    // Lensing arc (blue-shifted far side)
+    const lensG=ctx.createLinearGradient(-bhR-8,0,bhR+8,0);
+    lensG.addColorStop(0,'rgba(100,160,255,.0)'); lensG.addColorStop(0.35,'rgba(120,180,255,.30)'); lensG.addColorStop(0.65,'rgba(255,160,80,.30)'); lensG.addColorStop(1,'rgba(255,100,20,.0)');
+    ctx.strokeStyle=lensG; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.ellipse(0,0,bhR+10,bhR*0.22,0,Math.PI*1.05,Math.PI*1.95); ctx.stroke();
+    // Event horizon — pure black disk
+    ctx.fillStyle='rgba(0,0,0,1)';
+    ctx.beginPath(); ctx.arc(0,0,bhR,0,Math.PI*2); ctx.fill();
+    // Gravitational glow ring
+    const haloG=ctx.createRadialGradient(0,0,bhR-2,0,0,bhR+12);
+    haloG.addColorStop(0,'rgba(160,80,255,.45)'); haloG.addColorStop(0.5,'rgba(80,0,160,.22)'); haloG.addColorStop(1,'rgba(40,0,80,0)');
+    ctx.fillStyle=haloG; ctx.beginPath(); ctx.arc(0,0,bhR+12,0,Math.PI*2); ctx.fill();
+    ctx.restore();
   }
 
-  // HEAVEN: floating cloud islands and rainbow arc
+  // ── HEAVEN ───────────────────────────────────────────────────────────────
   if(map.id==='heaven'){
-    const rg=ctx.createLinearGradient(300,50,900,200);
-    rg.addColorStop(0,'rgba(255,80,80,.3)'); rg.addColorStop(0.2,'rgba(255,180,0,.3)'); rg.addColorStop(0.4,'rgba(80,255,80,.3)');
-    rg.addColorStop(0.6,'rgba(80,180,255,.3)'); rg.addColorStop(1,'rgba(180,80,255,.3)');
-    ctx.strokeStyle=rg; ctx.lineWidth=18;
-    ctx.beginPath(); ctx.arc(W/2,450,500,Math.PI*1.1,Math.PI*1.9); ctx.stroke();
-    const cloudIsles=[{x:200,y:120,w:160},{x:600,y:90,w:200},{x:1000,y:110,w:180},{x:1380,y:95,w:155}];
+    // Rainbow — thicker, multi-band
+    const rainbowBands=[
+      ['rgba(255,70,70,.38)',   0],
+      ['rgba(255,160,0,.35)',   8],
+      ['rgba(255,255,60,.32)',  16],
+      ['rgba(60,220,60,.30)',   24],
+      ['rgba(60,160,255,.30)',  32],
+      ['rgba(160,60,255,.28)',  40],
+    ];
+    for(const [col,offset] of rainbowBands){
+      ctx.strokeStyle=col; ctx.lineWidth=14;
+      ctx.beginPath(); ctx.arc(W/2,460,490+offset,Math.PI*1.08,Math.PI*1.92); ctx.stroke();
+    }
+    // Shimmer sweep — once every 10 seconds
+    const shimPhase=(T%10)/10; // 0–1 over 10s
+    if(shimPhase<0.18){
+      const shimT=shimPhase/0.18; // 0–1 during flash window
+      // Shimmer as a bright arc sweeping left-to-right
+      const shimStart=Math.PI*1.08+shimT*(Math.PI*0.84)-0.08;
+      const shimEnd=shimStart+0.12;
+      ctx.save();
+      ctx.globalAlpha=Math.sin(shimT*Math.PI)*0.55;
+      ctx.strokeStyle='rgba(255,255,255,1)'; ctx.lineWidth=28;
+      ctx.beginPath(); ctx.arc(W/2,460,510,shimStart,shimEnd); ctx.stroke();
+      ctx.restore();
+    }
+    // Cloud islands
+    const cloudIsles=[{x:200,y:118,w:160},{x:600,y:88,w:200},{x:1000,y:108,w:180},{x:1380,y:93,w:155}];
     for(const c of cloudIsles){
-      ctx.fillStyle='rgba(255,255,255,.88)';
+      ctx.fillStyle='rgba(255,255,255,.90)';
       ctx.beginPath(); ctx.arc(c.x,c.y,c.w*0.42,0,Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(c.x+c.w*0.28,c.y+10,c.w*0.3,0,Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(c.x-c.w*0.28,c.y+12,c.w*0.28,0,Math.PI*2); ctx.fill();
@@ -2129,25 +2384,102 @@ function drawBackground(dt){
     }
   }
 
-  // GALAXY: nebula + star field + rock spires
+  // ── GALAXY ───────────────────────────────────────────────────────────────
   if(map.id==='galaxy'){
-    const nebColors=['rgba(100,20,200,.25)','rgba(200,20,150,.2)','rgba(20,100,200,.22)'];
+    // Background nebula clouds
+    const nebColors=['rgba(100,20,200,.22)','rgba(200,20,150,.18)','rgba(20,100,200,.20)'];
     for(let i=0;i<5;i++){
       const ng=ctx.createRadialGradient(150+i*300,100+i%3*40,0,150+i*300,100+i%3*40,120);
       ng.addColorStop(0,nebColors[i%3]); ng.addColorStop(1,'transparent');
       ctx.fillStyle=ng; ctx.beginPath(); ctx.arc(150+i*300,100+i%3*40,120,0,Math.PI*2); ctx.fill();
     }
-    ctx.fillStyle='rgba(255,255,255,.9)';
-    for(let i=0;i<40;i++){ ctx.beginPath(); ctx.arc((i*373)%W,(i*197+13)%210,0.8+i%3*0.6,0,Math.PI*2); ctx.fill(); }
-    ctx.fillStyle='rgba(15,0,40,.95)';
+    // Star field
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    for(let i=0;i<48;i++){
+      const sa=0.5+Math.sin(T*0.7+i*1.3)*0.5;
+      ctx.globalAlpha=sa*0.9;
+      ctx.beginPath(); ctx.arc((i*373)%W,(i*197+13)%210,0.7+i%3*0.55,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // Rock spires at bottom
+    ctx.fillStyle='rgba(12,0,32,.96)';
     for(let i=0;i<6;i++){
       const sx=100+i*260;
-      ctx.beginPath(); ctx.moveTo(sx-40,H); ctx.lineTo(sx-10,190); ctx.lineTo(sx,178); ctx.lineTo(sx+10,190); ctx.lineTo(sx+40,H); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(sx-40,H); ctx.lineTo(sx-10,192); ctx.lineTo(sx,178); ctx.lineTo(sx+10,192); ctx.lineTo(sx+40,H); ctx.fill();
     }
+
+    // Rotating galaxy in top-right (replaces moon)
+    const gx=1320, gy=78;
+    ctx.save();
+    ctx.translate(gx,gy);
+    const galAngle=T*0.08; // very slow rotation
+    ctx.rotate(galAngle);
+    // Outer spiral haze rings
+    for(let ring=0;ring<5;ring++){
+      const rr=20+ring*14;
+      const a=0.12-ring*0.018;
+      const hg=ctx.createRadialGradient(0,0,rr*0.5,0,0,rr);
+      hg.addColorStop(0,`rgba(160,80,255,${a*2})`); hg.addColorStop(0.5,`rgba(200,100,255,${a})`); hg.addColorStop(1,'rgba(100,40,200,0)');
+      ctx.fillStyle=hg; ctx.beginPath(); ctx.ellipse(0,0,rr,rr*0.38,0,0,Math.PI*2); ctx.fill();
+    }
+    // Spiral arms — draw as rotated arcs with decreasing opacity
+    const armColors=['rgba(180,120,255,.55)','rgba(120,180,255,.45)'];
+    for(let arm=0;arm<2;arm++){
+      ctx.save();
+      ctx.rotate(arm*Math.PI);
+      ctx.strokeStyle=armColors[arm]; ctx.lineWidth=3.5;
+      ctx.beginPath();
+      for(let t2=0;t2<=Math.PI*1.6;t2+=0.08){
+        const r=6+t2*14;
+        const px=Math.cos(t2)*r, py=Math.sin(t2)*r*0.42;
+        t2===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      // Thinner bright inner arm
+      ctx.strokeStyle=armColors[arm].replace(/[\d.]+\)$/,'0.85)'); ctx.lineWidth=1.5;
+      ctx.beginPath();
+      for(let t2=0;t2<=Math.PI*1.2;t2+=0.06){
+        const r=4+t2*10;
+        const px=Math.cos(t2)*r, py=Math.sin(t2)*r*0.42;
+        t2===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+    // Bright galactic core
+    const coreG=ctx.createRadialGradient(0,0,0,0,0,12);
+    coreG.addColorStop(0,'rgba(255,240,200,1)'); coreG.addColorStop(0.4,'rgba(255,180,100,.8)'); coreG.addColorStop(1,'rgba(180,80,255,0)');
+    ctx.fillStyle=coreG; ctx.beginPath(); ctx.arc(0,0,12,0,Math.PI*2); ctx.fill();
+    // Outer glow
+    const outerG=ctx.createRadialGradient(0,0,0,0,0,72);
+    outerG.addColorStop(0,'rgba(140,60,255,.0)'); outerG.addColorStop(0.5,'rgba(100,40,220,.10)'); outerG.addColorStop(1,'rgba(60,20,160,0)');
+    ctx.fillStyle=outerG; ctx.beginPath(); ctx.arc(0,0,72,0,Math.PI*2); ctx.fill();
+    ctx.restore();
   }
 
-  // WAVES drawn on top so features are covered — opaque, lighter at top
-  drawWater(210,'#a8dff5',16,1); drawWater(310,'#3fa8e0',22,1.15); drawWater(510,'#1a6db5',28,1.3); drawWater(700,'#0a3d80',34,1.5);
+  // ── PER-MAP WAVE COLORS ───────────────────────────────────────────────────
+  const wc={
+    bay:     ['#b8e8fa','#5db8e8','#2178c4','#0d4a96'],
+    reef:    ['#7aeef0','#20c8c8','#0898a0','#045560'],
+    deep:    ['#1a3a6a','#0e2248','#081535','#040c22'],
+    lava:    ['#c44a20','#8a2210','#5a1008','#300806'],
+    ice:     ['#c8eeff','#82ccee','#3898c8','#1060a0'],
+    mangrove:['#4aaa6a','#228848','#0e5a2a','#073818'],
+    crystal: ['#9af4ff','#44d8ee','#12a8cc','#0878a0'],
+    storm:   ['#485878','#2c3a52','#182230','#0c1420'],
+    jungle:  ['#3ab86a','#1e8844','#0c5828','#063818'],
+    toxic:   ['#8aee18','#56bb08','#308800','#185400'],
+    desert:  ['#38c8e8','#18a8cc','#0c7aa0','#085070'],
+    moon:    ['#3848a0','#222e78','#141c55','#0a1038'],
+    void:    ['#2a0858','#180438','#0c0225','#060015'],
+    heaven:  ['#a8e8ff','#70c8f8','#3898e0','#1868c0'],
+    galaxy:  ['#1a0848','#100530','#080220','#040112'],
+  }[map.id] || ['#a8dff5','#3fa8e0','#1a6db5','#0a3d80'];
+
+  drawWater(210,wc[0],16,1);
+  drawWater(310,wc[1],22,1.15);
+  drawWater(510,wc[2],28,1.3);
+  drawWater(700,wc[3],34,1.5);
 }
 function drawWater(y,color,amp,spd){
   ctx.fillStyle = color;
