@@ -494,12 +494,11 @@ const game = {
   coins: 0, gems: 0, score: 0, caught: 0, bestCatch: 'None',
   map:'bay', rod:'wood', bait:0, baitActive:false,
   unlockedMaps:{bay:true}, unlockedRods:{wood:true},
-  shopTab:'upgrades', panel:null, mouseX:750, mouseY:430, last:0, wave:0, shake:0,
+  shopTab:'upgrades', panel:null, panelFrom:null, mouseX:750, mouseY:430, last:0, wave:0, shake:0,
   combo:1, comboTimer:0,
   potions:{luck:0, speed:0, coin:0},
   transition:{active:false, phase:'none', t:0, nextMap:null, boatX:0},
   upgrades:{speed:0, rope:0, luck:0, magnet:0},
-  panelAnim:{t:0, open:false},
   quests:[
     { text:'Catch 10 fish', goal:10, type:'caught', reward:250, done:false },
     { text:'Reach max combo level', goal:2, type:'combo', reward:500, done:false },
@@ -552,27 +551,7 @@ function text(t,x,y,size=24,align='left',color='white',weight='bold'){ ctx.fillS
 class Button{
   constructor(x,y,w,h,label,fn){ Object.assign(this,{x,y,w,h,label,fn}); }
   hit(mx,my){ return mx>=this.x&&mx<=this.x+this.w&&my>=this.y&&my<=this.y+this.h; }
-  hovered(){ return this.hit(game.mouseX, game.mouseY); }
-  draw(color='#0984e3'){
-    const hov = this.hovered();
-    // Lighten color on hover
-    let fill = color;
-    if(hov && color !== 'transparent'){
-      ctx.save();
-      ctx.globalAlpha = 1;
-      // Draw a slightly brighter overlay
-      roundRect(this.x,this.y,this.w,this.h,16,color,'rgba(255,255,255,.65)',3);
-      // Bright overlay
-      roundRect(this.x,this.y,this.w,this.h,16,'rgba(255,255,255,.18)',null,0);
-      // Scale-up hint via shadow
-      ctx.shadowColor='rgba(255,255,255,.35)'; ctx.shadowBlur=18;
-      roundRect(this.x,this.y,this.w,this.h,16,'rgba(0,0,0,0)','rgba(255,255,255,.9)',2.5);
-      ctx.shadowBlur=0; ctx.restore();
-    } else {
-      roundRect(this.x,this.y,this.w,this.h,16,color,'rgba(255,255,255,.65)',3);
-    }
-    text(this.label,this.x+this.w/2,this.y+this.h/2,24,'center');
-  }
+  draw(color='#0984e3'){ roundRect(this.x,this.y,this.w,this.h,16,color,'rgba(255,255,255,.65)',3); text(this.label,this.x+this.w/2,this.y+this.h/2,24,'center'); }
 }
 let buttons=[];
 function addButton(x,y,w,h,label,fn,color){ const b=new Button(x,y,w,h,label,fn); b.color=color; buttons.push(b); return b; }
@@ -1609,6 +1588,9 @@ function ropeRange(){ return 400 + game.upgrades.rope*100/3; }
 function launch(){
   if(game.panel || game.transition.active) return;
   if(harpoon.status!=='still') return;
+  // Block firing during tutorial except steps 1-2 (where firing is the lesson)
+  if(game.tutorial.active && game.tutorial.step === 0) return;
+  if(game.tutorial.active && game.tutorial.step > 2) return;
   harpoon.status='out';
   harpoon.tipX=harpoon.x;
   harpoon.tipY = 170;
@@ -1729,18 +1711,8 @@ function checkQuests(fish){
   save();
 }
 
-const tutorialSteps = [
-
-  {text: 'Move your mouse to aim the harpoon'}, {text: 'Click or press SPACE to throw the harpoon'},
-  {text: 'Catch a fish!'},{text: 'Open the SHOP menu'}, {text: 'Catch rare fish to get gems and buy upgrades! Close the shop menu to continue'},
-  {text: 'Open the GEAR menu'}, {text: 'Buy better rods with coins! Close the GEAR menu to continue.'}, {text: 'Open the MAPS menu'},
-  {text: 'Travel to new locations from here! Close the MAPS menu to continue'}, {text: 'Open the QUEST menu'}, {text: 'You can complete these quests for rewards! Close the QUEST menu to continue'}, 
-  {text: 'Open the CATCHES menu'}, {text: 'See all your caught fish here! Close the CATCHES menu to complete the tutorial'},
-  {text: 'Tutorial Complete!'}
-];
-
 function burst(x,y,color,n=10){ for(let i=0;i<n;i++) game.particles.push({x,y,vx:rand(-4,4),vy:rand(-4,4),life:rand(25,55),color}); }
-function msg(text,x,y,color){ game.messages.push({text,x,y,color,life:80}); }
+function msg(txt,x,y,color){ game.messages.push({text:txt,x,y,color,life:80}); }
 function updateEffects(dt){
   if(game.comboTimer>0){ game.comboTimer-=dt; if(game.comboTimer<=0) game.combo=1; }
   for(const k of Object.keys(game.potions)){ if(game.potions[k]>0) game.potions[k]=Math.max(0, game.potions[k]-dt); }
@@ -1751,134 +1723,137 @@ function updateEffects(dt){
   game.messages=game.messages.filter(m=>m.life>0);
 }
 
-function updateTutorial(){
+const tutorialSteps = [
+  { text:'Welcome, Captain! Move your mouse left and right to aim your harpoon.', icon:'🎯', action:'Move mouse' },
+  { text:'Ready to fire! Click or press SPACE to drop the harpoon into the water.', icon:'🖱️', action:'Click / Space' },
+  { text:'A fish is nearby! Drop the harpoon to catch it and earn coins.', icon:'🐟', action:'Catch a fish' },
+  { text:'Nice catch! Now open the MENU to access the Shop and buy upgrades.', icon:'☰', action:'Open MENU → Shop' },
+  { text:'The Shop lets you spend gems on upgrades. Gems come from rare fish!', icon:'💎', action:'Close Shop' },
+  { text:'Open the MENU again and visit the GEAR tab to buy better harpoons.', icon:'🔱', action:'Open MENU → Gear' },
+  { text:'Better harpoons unlock new maps and catch stronger fish faster!', icon:'⚡', action:'Close Gear' },
+  { text:'Open the MENU and check MAPS to travel to new fishing locations.', icon:'🗺', action:'Open MENU → Maps' },
+  { text:'Each map has unique fish and higher coin multipliers. Explore them all!', icon:'🌍', action:'Close Maps' },
+  { text:'Open the MENU and view your QUESTS — complete them for big rewards!', icon:'📋', action:'Open MENU → Quests' },
+  { text:'Quests award bonus coins. New quests unlock as you progress!', icon:'🏆', action:'Close Quests' },
+  { text:'Last stop — open MENU then CATCHES to see your fish collection.', icon:'📖', action:'Open MENU → Catches' },
+  { text:'Your collection tracks every fish and variant you\'ve caught. Fill it up!', icon:'✅', action:'Close Catches' },
+  { text:'Tutorial Complete! Good luck out there, Captain! 🎉', icon:'🎉', action:'' }
+];
 
+function drawTutorial(){
+  if(!game.tutorial.active) return;
+
+  const step = tutorialSteps[game.tutorial.step];
+  const isFinal = game.tutorial.step >= tutorialSteps.length - 1;
+
+  // Dim everything except tutorial bar
+  ctx.fillStyle='rgba(0,0,15,.52)';
+  ctx.fillRect(0,0,W,H);
+
+  // Tutorial bar at bottom — tall, clean card
+  const barH=128, barY=H-barH-18, barX=18, barW=W-36;
+  roundRect(barX,barY,barW,barH,22,'rgba(8,20,50,.96)','rgba(100,180,255,.45)',2.5);
+
+  // Shimmer top edge
+  ctx.fillStyle='rgba(100,180,255,.18)';
+  ctx.beginPath(); ctx.rect(barX+2,barY+2,barW-4,4); ctx.fill();
+
+  // Step icon
+  const iconSize=42;
+  ctx.font=`${iconSize}px serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(step.icon, barX+58, barY+barH/2-8);
+
+  // Step text
+  ctx.fillStyle='#fff';
+  ctx.font='bold 22px ui-monospace,monospace';
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText(step.text, barX+100, barY+38);
+
+  // Action hint
+  if(step.action){
+    ctx.fillStyle='rgba(255,221,89,.88)';
+    ctx.font='16px ui-monospace,monospace';
+    ctx.fillText(`▶  ${step.action}`, barX+102, barY+74);
+  }
+
+  // If final step, draw "Start Fishing!" button
+  if(isFinal){
+    const bw=220,bh=48,bx=barX+barW-bw-18,by=barY+barH/2-bh/2;
+    addButton(bx,by,bw,bh,'🎣  Start Fishing!',()=>{ game.tutorial.active=false; },'#2ed573').draw('#2ed573');
+  }
+
+  // Progress bar at bottom of bar
+  const progX=barX+100, progY=barY+barH-18, progW=barW-220, progH=6;
+  roundRect(progX,progY,progW,progH,3,'rgba(255,255,255,.10)');
+  const pct=game.tutorial.step/(tutorialSteps.length-1);
+  if(pct>0){ roundRect(progX,progY,Math.floor(progW*pct),progH,3,'#54a0ff'); }
+
+  // Step counter
+  ctx.fillStyle='rgba(255,255,255,.45)';
+  ctx.font='13px ui-monospace,monospace';
+  ctx.textAlign='right'; ctx.textBaseline='middle';
+  ctx.fillText(`${game.tutorial.step+1} / ${tutorialSteps.length}`, barX+barW-18, barY+barH-12);
+}
+
+function updateTutorial(){
   if(!game.tutorial.active) return;
 
   const t = game.tutorial;
 
-  // STEP 0
+  // STEP 0: move mouse
   if(t.step === 0){
-
-    if(Math.abs(game.mouseX - W/2) > 120){
-
-      t.step++;
-    }
+    if(Math.abs(game.mouseX - W/2) > 120) t.step++;
   }
-
-  // STEP 1
+  // STEP 1: fire harpoon
   else if(t.step === 1){
-
-    if(harpoon.status !== 'still'){
-
-      t.step++;
-    }
+    if(harpoon.status !== 'still') t.step++;
   }
-
-  // STEP 2
+  // STEP 2: catch a fish
   else if(t.step === 2){
-
-    if(game.caught >= 1){
-
-      t.step++;
-    }
+    if(game.caught >= 1) t.step++;
   }
-
-  // STEP 3
+  // STEP 3: open shop (via menu)
   else if(t.step === 3){
-
-    if(game.panel === 'shop'){
-
-      t.step++;
-    }
+    if(game.panel === 'shop') t.step++;
   }
-
-  // STEP 4
+  // STEP 4: close shop (back to menu or closed)
   else if(t.step === 4){
-
-    if(game.panel === null){
-
-      t.step++;
-    }
+    if(game.panel === null || game.panel === 'menu') t.step++;
   }
-
-  // STEP 5
+  // STEP 5: open gear/rods (via menu)
   else if(t.step === 5){
-
-    if(game.panel === 'rods'){
-
-      t.step++;
-    }
+    if(game.panel === 'rods') t.step++;
   }
-
-  // STEP 6
+  // STEP 6: close gear
   else if(t.step === 6){
-
-    if(game.panel === null){
-
-      t.step++;
-    }
+    if(game.panel === null || game.panel === 'menu') t.step++;
   }
-  
-  // STEP 7
+  // STEP 7: open maps (via menu)
   else if(t.step === 7){
-
-    if(game.panel === 'maps'){
-
-      t.step++;
-    }
+    if(game.panel === 'maps') t.step++;
   }
-
-  // STEP 8
+  // STEP 8: close maps
   else if(t.step === 8){
-
-    if(game.panel === null){
-
-      t.step++;
-    }
+    if(game.panel === null || game.panel === 'menu') t.step++;
   }
-
-  // STEP 9
+  // STEP 9: open quests (via menu)
   else if(t.step === 9){
-
-    if(game.panel === 'quests'){
-
-      t.step++;
-    }
+    if(game.panel === 'quests') t.step++;
   }
-
-  // STEP 10
+  // STEP 10: close quests
   else if(t.step === 10){
-
-    if(game.panel === null){
-
-      t.step++;
-    }
+    if(game.panel === null || game.panel === 'menu') t.step++;
   }
-
-  // STEP 11
+  // STEP 11: open collection (via menu)
   else if(t.step === 11){
-
-    if(game.panel === 'collection'){
-
-      t.step++;
-    }
+    if(game.panel === 'collection') t.step++;
   }
-
-  // STEP 12
+  // STEP 12: close collection
   else if(t.step === 12){
-
-    if(game.panel === null){
-
-      t.step++;
-    }
+    if(game.panel === null || game.panel === 'menu') t.step++;
   }
-
-  // END
-  else if(t.step >= tutorialSteps.length - 1){
-
-    game.tutorial.active = false;
-  }
+  // STEP 13 (final): player must click "Start Fishing!" button — handled in drawTutorial button fn
 }
 
 function spawnFish(){ game.fish=[]; const count=15+currentMap().fishBonus; for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
@@ -2170,29 +2145,40 @@ function drawBackground(dt){
     }
   }
 
-  // WAVES — solid opaque colors, lighter toward top of ocean
-  drawWater(210,'#a8dff5',16,1); drawWater(310,'#4db8e8',22,1.15); drawWater(510,'#1a8fc4',28,1.3); drawWater(700,'#0d5c96',34,1.5);
+  // WAVES drawn on top so features are covered — opaque, lighter at top
+  drawWater(210,'#a8dff5',16,1); drawWater(310,'#3fa8e0',22,1.15); drawWater(510,'#1a6db5',28,1.3); drawWater(700,'#0a3d80',34,1.5);
 }
 function drawWater(y,color,amp,spd){
   ctx.fillStyle = color;
+
   ctx.beginPath();
   ctx.moveTo(0,H);
   ctx.lineTo(0,y-20);
+
   for(let x=0; x<=W+40; x+=40){
-    ctx.lineTo(x,(y-20)+Math.sin((x+game.wave*spd)*.012)*amp);
+    ctx.lineTo(
+      x,
+      (y-20) + Math.sin((x + game.wave * spd) * .012) * amp
+    );
   }
+
   ctx.lineTo(W,H);
   ctx.closePath();
   ctx.fill();
 
-  // Bright solid crest line
-  ctx.strokeStyle='rgba(255,255,255,.55)';
-  ctx.lineWidth=2.5;
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.lineWidth = 3;
+
   ctx.beginPath();
-  for(let x=0;x<=W+40;x+=40){
-    const yy=(y-20)+Math.sin((x+game.wave*spd)*.012)*amp;
-    if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+
+  for(let x=0; x<=W+40; x+=40){
+    const yy =
+      (y-20) + Math.sin((x + game.wave * spd) * .012) * amp;
+
+    if(x===0) ctx.moveTo(x,yy);
+    else ctx.lineTo(x,yy);
   }
+
   ctx.stroke();
 }
 function drawBoat(){ ctx.save(); const tx = game.transition.active ? W/2 + game.transition.boatX : W/2; ctx.translate(tx,105); ctx.shadowColor='rgba(0,0,0,.28)'; ctx.shadowBlur=12; ctx.shadowOffsetY=8; ctx.fillStyle='#8b4513'; ctx.beginPath(); ctx.moveTo(-170,35); ctx.lineTo(170,35); ctx.lineTo(115,105); ctx.lineTo(-115,105); ctx.closePath(); ctx.fill(); ctx.fillStyle='#5c2f0e'; ctx.fillRect(-110,55,220,18); roundRect(-62,-25,124,65,12,'#f7f1e3','#8b4513',5); roundRect(-42,-10,35,28,6,'#54a0ff','#2e86de',3); roundRect(10,-10,35,28,6,'#54a0ff','#2e86de',3); ctx.fillStyle='#3d2b1f'; ctx.fillRect(-6,-85,12,70); ctx.fillStyle='#ffdd59'; ctx.beginPath(); ctx.moveTo(8,-82); ctx.lineTo(76,-48); ctx.lineTo(8,-18); ctx.closePath(); ctx.fill(); ctx.restore(); }
@@ -2418,7 +2404,7 @@ function drawHUD() {
 
   roundRect(
     14, 14,
-    290, 170,
+    290, 135,
     20,
     'rgba(0,0,0,.38)',
     'rgba(255,255,255,.22)',
@@ -2427,10 +2413,7 @@ function drawHUD() {
 
   text('Location: ' + currentMap().name, 34, 42, 17, 'left', '#9effff');
   text(`Coins: ${fmt(Math.floor(game.coins))}`, 34, 82, 25);
-  text(`Gems: ${game.gems || 0}`, 34, 118, 23, 'left', '#74b9ff');
-  // Combo bar
-  const comboColor = game.combo >= 1.9 ? '#ff4757' : game.combo >= 1.5 ? '#ffa502' : game.combo >= 1.2 ? '#ffdd59' : '#7bed9f';
-  text(`Combo: ${game.combo.toFixed(2)}x`, 34, 154, 20, 'left', comboColor);
+  text(`Gems: ${game.gems || 0}`, 34, 122, 23, 'left', '#74b9ff');
 
   // =====================================================
   // RIGHT PANEL — potions + single MENU button
@@ -2462,78 +2445,58 @@ function drawHUD() {
   // MENU button (single big button)
   const pulse = 0.7 + Math.sin(Date.now() * 0.01) * 0.3;
   const anyTutorialHighlight = game.tutorial.active && [3,5,7,9,11].includes(game.tutorial.step);
-  const menuColor = anyTutorialHighlight ? `rgba(255,241,106,${pulse})` : '#0984e3';
+  const menuBtnX = rightX + 12, menuBtnY = 76, menuBtnW = panelW - 24, menuBtnH = 44;
+  const menuHov = game.mouseX >= menuBtnX && game.mouseX <= menuBtnX + menuBtnW && game.mouseY >= menuBtnY && game.mouseY <= menuBtnY + menuBtnH;
+  const menuColor = anyTutorialHighlight ? `rgba(255,241,106,${pulse})` : (menuHov ? '#2daaf5' : '#0984e3');
+  const menuDark  = anyTutorialHighlight ? `rgba(200,180,0,${pulse})`   : (menuHov ? '#1a8fd4' : '#0666b5');
 
-  addButton(rightX + 12, 76, panelW - 24, 44, '☰  MENU', () => { SFX.panelOpen(); game.panel = 'menu'; game.panelAnim={t:0,open:false}; }, menuColor).draw(menuColor);
+  // Draw menu button manually with gradient for hover support
+  ctx.save();
+  if(menuHov){ ctx.shadowColor='rgba(255,255,255,.28)'; ctx.shadowBlur=22; }
+  const menuGrad = ctx.createLinearGradient(menuBtnX, menuBtnY, menuBtnX, menuBtnY + menuBtnH);
+  menuGrad.addColorStop(0, menuColor);
+  menuGrad.addColorStop(1, menuDark);
+  roundRect(menuBtnX, menuBtnY, menuBtnW, menuBtnH, 16, menuGrad, 'rgba(255,255,255,'+(menuHov?'.7':'.65')+')', 3);
+  ctx.shadowBlur = 0;
+  text('☰  MENU', menuBtnX + menuBtnW/2, menuBtnY + menuBtnH/2, 24, 'center');
+  ctx.restore();
+  addButton(menuBtnX, menuBtnY, menuBtnW, menuBtnH, '', () => { SFX.panelOpen(); game.panel = 'menu'; game.panelFrom=null; game.panelAnim={t:0,open:false}; }, 'transparent');
 }
 
-function drawTutorial(){
 
-  if(!game.tutorial.active) return;
-
-  const step = tutorialSteps[game.tutorial.step];
-  // dark bar
-  ctx.fillStyle = 'rgba(0,0,0,.45)';
-  ctx.fillRect(0, 0, W, 90);
-  // tutorial text
-  text(
-    step.text,
-    W/2,
-    50,
-    30,
-    'center',
-    '#fff16a'
-  );
-  // progress dots
-  for(let i=0;i<tutorialSteps.length;i++){
-
-    ctx.fillStyle =
-      i === game.tutorial.step
-      ? '#fff16a'
-      : 'rgba(255,255,255,.3)';
-
-    ctx.beginPath();
-
-    ctx.arc(
-      W/2 - 50 + i*25,
-      76,
-      5,
-      0,
-      Math.PI*2
-    );
-    ctx.fill();
-  }
-}
 function drawPanel(){
   if(!game.panel) return;
 
-  // Animate panel open: ease-out scale from 0.88 → 1 over 180ms
-  const now = Date.now();
-  if(!game.panelAnim) game.panelAnim = {t:0, open:false};
+  // Panel open animation
+  if(!game.panelAnim) game.panelAnim={t:0,open:false};
+  const now=Date.now();
   if(!game.panelAnim.open){ game.panelAnim.open=true; game.panelAnim.startTime=now; }
-  const elapsed = now - (game.panelAnim.startTime||now);
-  const dur = 160; // ms
-  const raw = Math.min(1, elapsed / dur);
-  // ease-out cubic
-  const ease = 1 - Math.pow(1-raw,3);
-  const scale = 0.88 + 0.12 * ease;
-  const fadeAlpha = 0.45 * ease;
+  const elapsed=now-(game.panelAnim.startTime||now);
+  const raw=Math.min(1,elapsed/160);
+  const ease=1-Math.pow(1-raw,3);
+  const scale=0.88+0.12*ease;
 
-  // Dim background
-  ctx.fillStyle=`rgba(0,0,0,${fadeAlpha})`; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=`rgba(0,0,0,${0.45*ease})`; ctx.fillRect(0,0,W,H);
 
-  // Panel with scale animation (pivot center of panel)
-  const px=175, py=95, pw=1160, ph=670;
-  const cx=px+pw/2, cy=py+ph/2;
+  const px=175,py=95,pw=1160,ph=670,cx2=px+pw/2,cy2=py+ph/2;
   ctx.save();
-  ctx.translate(cx,cy);
-  ctx.scale(scale,scale);
-  ctx.translate(-cx,-cy);
+  ctx.translate(cx2,cy2); ctx.scale(scale,scale); ctx.translate(-cx2,-cy2);
   ctx.globalAlpha=ease;
 
   roundRect(px,py,pw,ph,30,'#102a43','rgba(255,255,255,.55)',5);
-  addButton(1250,120,58,58,'X',()=>{ SFX.panelClose(); game.panel=null; game.panelAnim={t:0,open:false}; },'#ff4757').draw('#ff4757');
-  text(game.panel==='menu'?'MENU':game.panel.toUpperCase(),W/2,145,48,'center');
+
+  const isSubPanel = game.panel!=='menu' && game.panelFrom==='menu';
+
+  if(isSubPanel){
+    // ← Back button
+    addButton(198,120,58,58,'←',()=>{ SFX.panelClose(); game.panel='menu'; game.panelFrom=null; game.panelAnim={t:0,open:false}; },'#636e72').draw('#636e72');
+  }
+
+  // X always fully closes
+  addButton(1250,120,58,58,'X',()=>{ SFX.panelClose(); game.panel=null; game.panelFrom=null; game.panelAnim={t:0,open:false}; },'#ff4757').draw('#ff4757');
+
+  text(game.panel==='menu'?'MENU':game.panel==='rods'?'GEAR':game.panel==='collection'?'CATCHES':game.panel==='sound'?'SETTINGS':game.panel==='stats'?'STATISTICS':game.panel.toUpperCase(), W/2,145,48,'center');
+
   if(game.panel==='menu') drawMenuPanel();
   if(game.panel==='shop') drawShopPanel();
   if(game.panel==='maps') drawMapsPanel();
@@ -2556,17 +2519,15 @@ function drawMenuPanel(){
 
   const btns = [
     { label:'Shop',       icon:'🛒', sub:'Buy upgrades & bait',  color:'#0fbcf9', dark:'#0984e3', panel:'shop',       tutStep:3  },
-    { label:'Maps',       icon:'🗺️', sub:'Travel to new waters', color:'#00cec9', dark:'#00a8a4', panel:'maps',       tutStep:7  },
+    { label:'Maps',       icon:'🗺',  sub:'Travel to new waters', color:'#00cec9', dark:'#00a8a4', panel:'maps',       tutStep:7  },
     { label:'Quests',     icon:'📋', sub:'Daily fishing goals',   color:'#55efc4', dark:'#00b894', panel:'quests',     tutStep:9  },
     { label:'Bait',       icon:'🪱', sub:'Boost your catches',    color:'#a29bfe', dark:'#6c5ce7', panel:'bait',       tutStep:-1 },
     { label:'Gear',       icon:'🔱', sub:'Upgrade your harpoon', color:'#fdcb6e', dark:'#e17055', panel:'rods',       tutStep:5  },
     { label:'Catches',    icon:'🐟', sub:'Your fish collection',  color:'#fd79a8', dark:'#e84393', panel:'collection', tutStep:11 },
     { label:'Statistics', icon:'📊', sub:'Your fishing records',  color:'#74b9ff', dark:'#0984e3', panel:'stats',      tutStep:-1 },
-    { label:'Settings',   icon:'⚙️', sub:'Sound & preferences',  color: SFX.settings.mute ? '#ff6b6b' : '#b2bec3', dark: SFX.settings.mute ? '#ff4757' : '#636e72', panel:'sound', tutStep:-1 },
+    { label:'Settings',   icon:'⚙',  sub:'Sound & preferences',  color: SFX.settings.mute ? '#ff6b6b' : '#b2bec3', dark: SFX.settings.mute ? '#ff4757' : '#636e72', panel:'sound', tutStep:-1 },
   ];
 
-  // Layout: 4 columns × 2 rows filling the panel
-  // Panel is 175..1335 (1160w), 95..765 (670h), content from y≈170
   const panelL=175, panelT=165, panelR=1335, panelB=755;
   const cols=4, rows=2;
   const padX=30, padY=22, gapX=20, gapY=18;
@@ -2586,10 +2547,8 @@ function drawMenuPanel(){
     const baseColor = highlight ? `rgba(255,241,106,${pulse})` : b.color;
     const darkColor = highlight ? `rgba(200,180,0,${pulse})` : b.dark;
 
-    // Hover detection
     const hov = mx>=bx && mx<=bx+btnW && my>=by && my<=by+btnH;
 
-    // Card background with gradient
     ctx.save();
     if(hov){ ctx.shadowColor='rgba(255,255,255,.28)'; ctx.shadowBlur=22; }
     const grad=ctx.createLinearGradient(bx,by,bx,by+btnH);
@@ -2602,38 +2561,44 @@ function drawMenuPanel(){
     ctx.fillStyle='rgba(255,255,255,.18)';
     ctx.beginPath(); ctx.rect(bx+2,by+2,btnW-4,6); ctx.fill();
 
-    // Icon — large, centered in top half
-    ctx.font=`${Math.floor(btnH*0.32)}px serif`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(b.icon, bx+btnW/2, by+btnH*0.38);
+    // Icon — use fillText with explicit centering via canvas alignment
+    const iconSize = Math.floor(btnH*0.32);
+    ctx.save();
+    ctx.font = `${iconSize}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Force canvas to use center alignment so multi-codepoint emoji land correctly
+    ctx.fillStyle = 'rgba(0,0,0,0)'; // invisible test draw to prime layout
+    const iconX = bx + Math.floor(btnW/2);
+    const iconY = Math.floor(by + btnH*0.38);
+    ctx.fillStyle = 'white';
+    ctx.fillText(b.icon, iconX, iconY);
+    ctx.restore();
 
-    // Label — bold, bottom section
+    // Label
     ctx.fillStyle='#fff';
     ctx.font=`bold ${Math.floor(btnH*0.115)}px ui-monospace,monospace`;
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(b.label, bx+btnW/2, by+btnH*0.68);
+    ctx.fillText(b.label, bx+Math.floor(btnW/2), by+btnH*0.68);
 
-    // Sub-label — smaller, faded
-    ctx.fillStyle='rgba(255,255,255,.7)';
-    ctx.font=`${Math.floor(btnH*0.083)}px ui-monospace,monospace`;
-    ctx.fillText(b.sub, bx+btnW/2, by+btnH*0.84);
+    // Sub-label — smaller font
+    ctx.fillStyle='rgba(255,255,255,.68)';
+    ctx.font=`${Math.floor(btnH*0.072)}px ui-monospace,monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(b.sub, bx+Math.floor(btnW/2), by+btnH*0.84);
 
     ctx.restore();
 
-    // Register button for click
-    addButton(bx,by,btnW,btnH,'',(()=>{const p=b.panel; return ()=>{ SFX.panelOpen(); game.panel=p; game.panelAnim={t:0,open:false}; }; })(),'transparent');
+    addButton(bx,by,btnW,btnH,'',(()=>{const p=b.panel; return ()=>{ SFX.panelOpen(); game.panelFrom='menu'; game.panel=p; game.panelAnim={t:0,open:false}; }; })(),'transparent');
   });
 }
 
-// Helper: lighten a hex color by amt (0-255)
-function lightenHex(hex, amt){
-  // works for 7-char hex like #0fbcf9
+function lightenHex(hex,amt){
   if(!hex||hex[0]!=='#'||hex.length<7) return hex;
-  let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
-  r=Math.min(255,r+amt); g=Math.min(255,g+amt); b=Math.min(255,b+amt);
+  let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  r=Math.min(255,r+amt);g=Math.min(255,g+amt);b=Math.min(255,b+amt);
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
-
 function drawStatsPanel(){
   const cx = W/2;
   text('Your fishing statistics', cx, 188, 20, 'center', '#9effff');
@@ -3219,7 +3184,7 @@ canvas.addEventListener('wheel', e=>{
     game.collectionScroll = (game.collectionScroll || 0) + e.deltaY * 0.6;
   }
 });
-window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape'){ if(game.panel){ SFX.panelClose(); } game.panel=null; } if(e.key.toLowerCase()==='r') reset(); });
+window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape'){ if(game.panel){ SFX.panelClose(); if(game.panel!=='menu'&&game.panelFrom==='menu'){ game.panel='menu'; game.panelFrom=null; game.panelAnim={t:0,open:false}; } else { game.panel=null; game.panelFrom=null; game.panelAnim={t:0,open:false}; } } } if(e.key.toLowerCase()==='r') reset(); });
 
 load(); // Enable tutorial ONLY for brand new players
 if(game.caught === 0){
