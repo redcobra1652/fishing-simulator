@@ -31,6 +31,7 @@
       color: white; font-size: clamp(12px, 1.05vw, 17px); text-shadow: 0 2px 8px rgba(0,0,0,.75);
       background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.22);
       padding: 9px 16px; border-radius: 999px; pointer-events: none; backdrop-filter: blur(4px); white-space: nowrap;
+      transition: opacity 0.4s;
     }
   </style>
 </head>
@@ -481,8 +482,8 @@ const fishTypesByMap = {
 };
 
 function chooseVariant(typeId){
-  let goldenChance = 1 + game.upgrades.luck * .5 + (game.baitActive ? 4 : 0) + (game.potions.luck>0 ? 5 : 0);
-  let rainbowChance = .125 + game.upgrades.luck * .125 + (game.baitActive ? 1.5 : 0) + (game.potions.luck>0 ? 2 : 0);
+  let goldenChance = 1 + game.upgrades.luck * .5 + (game.potions.luck>0 ? 5 : 0) + (game.mutationBaitActive ? 18 : 0);
+  let rainbowChance = .125 + game.upgrades.luck * .125 + (game.potions.luck>0 ? 2 : 0) + (game.mutationBaitActive ? 8 : 0);
   if(typeId >= 5){ goldenChance += 2; rainbowChance += 1; }
   const r = rand(0,100);
   if(r < rainbowChance) return { id:'rainbow', label:'Rainbow', mult:5, border:'#ff4dff' };
@@ -492,7 +493,7 @@ function chooseVariant(typeId){
 
 const game = {
   coins: 0, gems: 0, score: 0, caught: 0, bestCatch: 'None',
-  map:'bay', rod:'wood', bait:0, baitActive:false,
+  map:'bay', rod:'wood', bait:0, mapBaitActive:false, mutationBaitActive:false,
   unlockedMaps:{bay:true}, unlockedRods:{wood:true},
   shopTab:'upgrades', panel:null, panelFrom:null, mouseX:750, mouseY:430, last:0, wave:0, shake:0,
   combo:1, comboTimer:0,
@@ -533,7 +534,7 @@ function save(){
     console.warn("Save failed: Storage might be full or private.");
   }
 }
-function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; game.mapBaitActive=false; game.mutationBaitActive=false; game._baitTimers={}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); }catch(e){} }
 function reset(){ localStorage.removeItem('fishingEmpireSave'); location.reload(); }
 function currentMap(){ return maps.find(m=>m.id===game.map); }
 function currentRod(){ return rods.find(r=>r.id===game.rod); }
@@ -1319,7 +1320,7 @@ function drawFishPattern(pattern, w, h){
 class Fish{
   constructor() {
     const map = currentMap();
-    const rareBoost = map.rare + game.upgrades.luck * .25 + (game.baitActive ? 20 : 0) + (game.potions.luck > 0 ? 24 : 0);
+    const rareBoost = map.rare + game.upgrades.luck * .25 + (game.potions.luck > 0 ? 24 : 0) + (game.mapBaitActive ? 35 : 0);
     const fishPool = fishTypesByMap[map.id] || fishTypesByMap.bay;
 
     // 1. Calculate pool total with a dampened, subtle boost
@@ -2404,7 +2405,7 @@ function drawHUD() {
 
   roundRect(
     14, 14,
-    290, 135,
+    290, 165,
     20,
     'rgba(0,0,0,.38)',
     'rgba(255,255,255,.22)',
@@ -2413,7 +2414,10 @@ function drawHUD() {
 
   text('Location: ' + currentMap().name, 34, 42, 17, 'left', '#9effff');
   text(`Coins: ${fmt(Math.floor(game.coins))}`, 34, 82, 25);
-  text(`Gems: ${game.gems || 0}`, 34, 122, 23, 'left', '#74b9ff');
+  text(`Gems: ${game.gems || 0}`, 34, 118, 23, 'left', '#74b9ff');
+  // Combo display — colour shifts warm as combo rises
+  const comboColor = game.combo >= 1.875 ? '#ff4757' : game.combo >= 1.5 ? '#ffa502' : game.combo >= 1.125 ? '#ffdd59' : '#55efc4';
+  text(`Combo: ${game.combo.toFixed(2)}x`, 34, 153, 20, 'left', comboColor);
 
   // =====================================================
   // RIGHT PANEL — potions + single MENU button
@@ -2822,7 +2826,176 @@ function drawRodsPanel(){
     }
   });
 }
-function drawBaitPanel(){ text('Bait boosts rare fish for the next 30 seconds.',W/2,230,26,'center','#dfe6e9'); roundRect(380,295,750,170,24,'rgba(255,255,255,.10)','rgba(255,255,255,.25)',2); text('Lucky Bait',W/2,340,34,'center'); text('Cost: 350 coins • +rare fish chance',W/2,390,22,'center','#dfe6e9'); addButton(620,420,270,58,game.baitActive?'Active':'Buy + Use',()=>{ if(!game.baitActive) buy(350,()=>{ game.baitActive=true; setTimeout(()=>game.baitActive=false,30000); }); },game.baitActive?'#636e72':'#a29bfe').draw(game.baitActive?'#636e72':'#a29bfe'); }
+function drawBaitPanel(){
+  const map = currentMap();
+  const mapIndex = maps.findIndex(m => m.id === game.map);
+
+  // Map bait = 30% of map unlock cost (min 150 for bay)
+  const mapBaitCost = Math.max(150, Math.round(map.cost * 0.30));
+  // Mutation bait scales with progression
+  const mutationCost = Math.round(500 * Math.pow(1.55, mapIndex));
+
+  const baits = [
+    {
+      key: 'mapBaitActive',
+      label: `${map.name} Bait`,
+      icon: '🌊',
+      cost: mapBaitCost,
+      color: '#00cec9',
+      dark: '#007a78',
+      effects: ['↑↑ Epic & Legendary fish rate', '↑ Rare fish chance', 'Tailored to current map'],
+    },
+    {
+      key: 'mutationBaitActive',
+      label: 'Mutation Bait',
+      icon: '🧬',
+      cost: mutationCost,
+      color: '#fd79a8',
+      dark: '#a0264e',
+      effects: ['↑↑↑ Golden fish chance', '↑↑ Rainbow fish chance', 'Applies to any map'],
+    },
+  ];
+
+  // ── Header ──
+  text('Active for 30 seconds after purchase', W/2, 193, 18, 'center', 'rgba(255,255,255,.45)');
+
+  const cardW = 480, cardH = 430, gapX = 60;
+  const totalW = baits.length * cardW + (baits.length - 1) * gapX;
+  const startX = Math.round(W/2 - totalW/2);
+  const cardY = 215;
+
+  baits.forEach((b, i) => {
+    const bx = startX + i * (cardW + gapX);
+    const active = game[b.key];
+    const cx = bx + cardW/2;
+
+    // Card background
+    const bgFill = active ? b.color + '28' : 'rgba(255,255,255,.06)';
+    const border  = active ? b.color       : 'rgba(255,255,255,.18)';
+    roundRect(bx, cardY, cardW, cardH, 22, bgFill, border, active ? 2.5 : 1.5);
+
+    // Active glow
+    if(active){
+      ctx.save();
+      ctx.shadowColor = b.color; ctx.shadowBlur = 32;
+      roundRect(bx, cardY, cardW, cardH, 22, 'transparent', b.color, 2);
+      ctx.restore();
+    }
+
+    // Top accent stripe
+    const stripeGrad = ctx.createLinearGradient(bx, cardY, bx + cardW, cardY);
+    stripeGrad.addColorStop(0, 'transparent');
+    stripeGrad.addColorStop(0.5, b.color + (active ? 'cc' : '55'));
+    stripeGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = stripeGrad;
+    ctx.beginPath(); ctx.rect(bx + 1, cardY + 1, cardW - 2, 5); ctx.fill();
+
+    // Icon
+    ctx.font = '58px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(b.icon, cx, cardY + 76);
+
+    // Label
+    ctx.fillStyle = active ? '#ffffff' : '#dfe6e9';
+    ctx.font = 'bold 26px ui-monospace,monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(b.label, cx, cardY + 144);
+
+    // Divider
+    ctx.strokeStyle = active ? b.color + '66' : 'rgba(255,255,255,.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(bx + 32, cardY + 163); ctx.lineTo(bx + cardW - 32, cardY + 163); ctx.stroke();
+
+    // Effect bullets
+    b.effects.forEach((eff, ei) => {
+      const ey = cardY + 192 + ei * 34;
+      // pill background
+      roundRect(bx + 28, ey - 12, cardW - 56, 26, 8, 'rgba(255,255,255,.07)', 'rgba(255,255,255,.10)', 1);
+      ctx.fillStyle = active ? b.color : 'rgba(255,255,255,.75)';
+      ctx.font = '14px ui-monospace,monospace';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(eff, bx + 44, ey + 1);
+    });
+
+    // Cost / active badge
+    const badgeY = cardY + 315;
+    if(active){
+      roundRect(bx + 60, badgeY, cardW - 120, 38, 10, b.color + '33', b.color, 1.5);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 16px ui-monospace,monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✓  ACTIVE', cx, badgeY + 19);
+    } else {
+      roundRect(bx + 60, badgeY, cardW - 120, 38, 10, 'rgba(255,221,89,.12)', 'rgba(255,221,89,.35)', 1.5);
+      ctx.fillStyle = '#ffdd59';
+      ctx.font = 'bold 17px ui-monospace,monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`${fmt(b.cost)} coins`, cx, badgeY + 19);
+    }
+
+    // Timer bar (when active)
+    const barY2 = cardY + 366;
+    const barW2 = cardW - 56;
+    const barX2 = bx + 28;
+    roundRect(barX2, barY2, barW2, 8, 4, 'rgba(255,255,255,.10)', 'rgba(255,255,255,.15)', 1);
+    if(active){
+      const pct = Math.max(0, (game._baitTimers?.[b.key] || 0) / 30000);
+      if(pct > 0){
+        const timerGrad = ctx.createLinearGradient(barX2, barY2, barX2 + barW2 * pct, barY2);
+        timerGrad.addColorStop(0, b.color);
+        timerGrad.addColorStop(1, b.color + 'aa');
+        roundRect(barX2, barY2, barW2 * pct, 8, 4, timerGrad, null, 0);
+        const secsLeft = Math.ceil((game._baitTimers?.[b.key] || 0) / 1000);
+        ctx.fillStyle = 'rgba(255,255,255,.5)';
+        ctx.font = '12px ui-monospace,monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(`${secsLeft}s remaining`, cx, barY2 + 20);
+      }
+    }
+
+    // Buy button
+    const btnY2 = cardY + cardH - 58;
+    const btnW3 = cardW - 56;
+    const btnX3 = bx + 28;
+    const btnH3 = 44;
+    const btnHov = game.mouseX >= btnX3 && game.mouseX <= btnX3 + btnW3 && game.mouseY >= btnY2 && game.mouseY <= btnY2 + btnH3;
+    const btnFill = active ? '#2d3748' : (btnHov ? b.color : b.dark);
+    const btnBorder = active ? 'rgba(255,255,255,.12)' : `rgba(255,255,255,${btnHov ? '.7' : '.3'})`;
+
+    ctx.save();
+    if(btnHov && !active){ ctx.shadowColor = b.color; ctx.shadowBlur = 18; }
+    const btnGrad = ctx.createLinearGradient(btnX3, btnY2, btnX3, btnY2 + btnH3);
+    btnGrad.addColorStop(0, btnFill);
+    btnGrad.addColorStop(1, active ? '#1a202c' : b.dark);
+    roundRect(btnX3, btnY2, btnW3, btnH3, 12, btnGrad, btnBorder, 2);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = active ? 'rgba(255,255,255,.3)' : '#fff';
+    ctx.font = `bold 18px ui-monospace,monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(active ? 'Already Active' : 'Buy & Use', btnX3 + btnW3/2, btnY2 + btnH3/2);
+    ctx.restore();
+
+    addButton(btnX3, btnY2, btnW3, btnH3, '', () => {
+      if(active) return;
+      buy(b.cost, () => {
+        game[b.key] = true;
+        if(!game._baitTimers) game._baitTimers = {};
+        game._baitTimers[b.key] = 30000;
+        setTimeout(() => { game[b.key] = false; }, 30000);
+      });
+    }, 'transparent');
+  });
+}
+
+// Track bait timer countdowns for the progress bar
+function updateBaitTimers(dt){
+  if(!game._baitTimers) return;
+  for(const k of Object.keys(game._baitTimers)){
+    if(game[k]){
+      game._baitTimers[k] = Math.max(0, game._baitTimers[k] - dt);
+    }
+  }
+}
 function drawQuestsPanel(){
   const boxH = 82;
   const gap = 14;
@@ -3090,7 +3263,7 @@ function drawSoundPanel(){
 }
 
 function drawEffects(){ for(const p of game.particles){ ctx.globalAlpha=clamp(p.life/40,0,1); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; } for(const m of game.messages){ ctx.globalAlpha=clamp(m.life/45,0,1); text(m.text,m.x,m.y,24,'center',m.color); ctx.globalAlpha=1; } }
-function update(dt){ for(const f of game.fish) f.move(dt); for(const c of game.chests) c.move(dt); updateHarpoon(dt); updateEffects(dt); updateTransition(dt); updateTutorial(); }
+function update(dt){ for(const f of game.fish) f.move(dt); for(const c of game.chests) c.move(dt); updateHarpoon(dt); updateEffects(dt); updateTransition(dt); updateTutorial(); updateBaitTimers(dt); }
 function draw(ts){
 
   const ox = rand(-game.shake, game.shake);
@@ -3118,7 +3291,11 @@ function draw(ts){
 
   drawTutorial();
 }
-function loop(t){ const dt=Math.min(33,t-game.last||16); game.last=t; update(dt); draw(t); requestAnimationFrame(loop); }
+function loop(t){ const dt=Math.min(33,t-game.last||16); game.last=t; update(dt); draw(t);
+  // Show/hide the help bar based on tutorial state
+  const helpEl = document.getElementById('help');
+  if(helpEl) helpEl.style.opacity = game.tutorial.active ? '0' : '1';
+  requestAnimationFrame(loop); }
 
 function mousePos(e){ const r=canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}; }
 
