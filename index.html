@@ -57,7 +57,8 @@ const SFX = (() => {
     mute: false,
     muteUI: false,
     muteFishing: false,
-    muteQuests: false
+    muteQuests: false,
+    muteMusic: false
   };
 
   // active reel (interval-based clicks)
@@ -146,41 +147,41 @@ const SFX = (() => {
       const thumpSrc = ac.createBufferSource();
       thumpSrc.buffer = thumpBuf;
       const lp = ac.createBiquadFilter();
-      lp.type = 'lowpass'; lp.frequency.value = 280;
+      lp.type = 'lowpass'; lp.frequency.value = 180;
       const tg = ac.createGain();
-      tg.gain.setValueAtTime(vol * 0.75, t);
+      tg.gain.setValueAtTime(vol * 1.1, t);
       thumpSrc.connect(lp); lp.connect(tg); tg.connect(ac.destination);
       thumpSrc.start(t);
 
       // 2. Splash — broadband noise swell
-      const splashLen = Math.ceil(ac.sampleRate * 0.22);
+      const splashLen = Math.ceil(ac.sampleRate * 0.28);
       const splashBuf = ac.createBuffer(1, splashLen, ac.sampleRate);
       const sd = splashBuf.getChannelData(0);
       for(let i = 0; i < splashLen; i++){
-        const attack = Math.min(1, i / (ac.sampleRate * 0.012));
-        const decay  = Math.exp(-i / (ac.sampleRate * 0.065));
+        const attack = Math.min(1, i / (ac.sampleRate * 0.018));
+        const decay  = Math.exp(-i / (ac.sampleRate * 0.09));
         sd[i] = (Math.random() * 2 - 1) * attack * decay;
       }
       const splashSrc = ac.createBufferSource();
       splashSrc.buffer = splashBuf;
       const bp = ac.createBiquadFilter();
-      bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.6;
+      bp.type = 'bandpass'; bp.frequency.value = 380; bp.Q.value = 0.5;
       const sg = ac.createGain();
-      sg.gain.setValueAtTime(vol * 0.38, t + 0.01);
+      sg.gain.setValueAtTime(vol * 0.55, t + 0.008);
       splashSrc.connect(bp); bp.connect(sg); sg.connect(ac.destination);
-      splashSrc.start(t + 0.01);
+      splashSrc.start(t + 0.008);
 
-      // 3. Bright ping — scales with rarity
-      const baseFreq = 480 + rare * 60;
+      // 3. Deep resonant thud ping — scales with rarity (lower, satisfying)
+      const baseFreq = 120 + rare * 18;
       const osc = ac.createOscillator();
       const og = ac.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(baseFreq, t + 0.05);
-      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.6, t + 0.28);
-      og.gain.setValueAtTime(vol * 0.22, t + 0.05);
-      og.gain.linearRampToValueAtTime(0, t + 0.38);
+      osc.frequency.setValueAtTime(baseFreq, t + 0.04);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.6, t + 0.35);
+      og.gain.setValueAtTime(vol * 0.45, t + 0.04);
+      og.gain.linearRampToValueAtTime(0, t + 0.50);
       osc.connect(og); og.connect(ac.destination);
-      osc.start(t + 0.05); osc.stop(t + 0.40);
+      osc.start(t + 0.04); osc.stop(t + 0.55);
     }, 'fishing');
   }
 
@@ -327,35 +328,35 @@ const SFX = (() => {
       }
       const thunkSrc = ac.createBufferSource();
       thunkSrc.buffer = thunkBuf;
-      const lp = ac.createBiquadFilter(); lp.type = 'bandpass'; lp.frequency.value = 420; lp.Q.value = 1.8;
-      const tg = ac.createGain(); tg.gain.setValueAtTime(vol * 0.85, t);
+      const lp = ac.createBiquadFilter(); lp.type = 'bandpass'; lp.frequency.value = 200; lp.Q.value = 1.4;
+      const tg = ac.createGain(); tg.gain.setValueAtTime(vol * 1.2, t);
       thunkSrc.connect(lp); lp.connect(tg); tg.connect(ac.destination);
       thunkSrc.start(t);
 
-      // 2. Metal latch clank
-      const clankBuf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.06), ac.sampleRate);
+      // 2. Metal latch clank — kept but lowered frequency
+      const clankBuf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.09), ac.sampleRate);
       const cd = clankBuf.getChannelData(0);
       for(let i = 0; i < cd.length; i++){
-        cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.012));
+        cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.022));
       }
       const clankSrc = ac.createBufferSource();
       clankSrc.buffer = clankBuf;
-      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2400;
-      const cg = ac.createGain(); cg.gain.setValueAtTime(vol * 0.50, t + 0.025);
+      const hp = ac.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = 600; hp.Q.value = 1.5;
+      const cg = ac.createGain(); cg.gain.setValueAtTime(vol * 0.55, t + 0.03);
       clankSrc.connect(hp); hp.connect(cg); cg.connect(ac.destination);
-      clankSrc.start(t + 0.025);
+      clankSrc.start(t + 0.03);
 
-      // 3. Glittery coin shimmer — three quick ascending pings
-      [0, 0.055, 0.105].forEach((delay, i) => {
+      // 3. Deep resonant chest boom — low descending tones (satisfying thud)
+      [0, 0.07, 0.14].forEach((delay, i) => {
         const osc = ac.createOscillator();
         const og = ac.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(1200 + i * 320, t + delay);
-        osc.frequency.exponentialRampToValueAtTime(1800 + i * 320, t + delay + 0.14);
-        og.gain.setValueAtTime(vol * 0.18, t + delay);
-        og.gain.linearRampToValueAtTime(0, t + delay + 0.20);
+        osc.frequency.setValueAtTime(110 - i * 18, t + delay);
+        osc.frequency.exponentialRampToValueAtTime(55 - i * 8, t + delay + 0.3);
+        og.gain.setValueAtTime(vol * 0.38, t + delay);
+        og.gain.linearRampToValueAtTime(0, t + delay + 0.38);
         osc.connect(og); og.connect(ac.destination);
-        osc.start(t + delay); osc.stop(t + delay + 0.22);
+        osc.start(t + delay); osc.stop(t + delay + 0.42);
       });
     }, 'fishing');
   }
@@ -371,185 +372,214 @@ const SFX = (() => {
   let _musicGain    = null;
   let _musicTimer   = null;   // the single rolling setTimeout handle
 
-  // ── note helpers ──────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // BACKGROUND MUSIC — Stardew Valley-inspired
+  // Instruments: marimba melody + banjo pluck bass + accordion chord pad +
+  //              woodblock percussion. Laidback major key, slightly behind
+  //              the beat for that cozy farm/fishing feel.
+  // 32 bars @ 100 BPM ≈ 76.8s loop.
+  // ══════════════════════════════════════════════════════════════════════════
+
   // Build frequency table from MIDI note numbers (A4=440 Hz, MIDI 69)
   function _mf(midi){ return 440 * Math.pow(2, (midi - 69) / 12); }
-  // Named shortcuts used in the sequence
   const _N = {
+    C3:_mf(48), D3:_mf(50), E3:_mf(52), F3:_mf(53), G3:_mf(55), A3:_mf(57), B3:_mf(59),
     C4:_mf(60), D4:_mf(62), E4:_mf(64), F4:_mf(65), G4:_mf(67), A4:_mf(69), B4:_mf(71),
     C5:_mf(72), D5:_mf(74), E5:_mf(76), F5:_mf(77), G5:_mf(79), A5:_mf(81), B5:_mf(83),
-    C3:_mf(48), D3:_mf(50), E3:_mf(52), F3:_mf(53), G3:_mf(55), A3:_mf(57),
   };
 
-  // ── xylophone-style note: sine with sharp attack, fast decay ──────────────
-  function _xylo(ac, dest, freq, startT, vol, dur){
+  // ── MARIMBA note: sine + 4th harmonic, fast wood-like decay ──────────────
+  function _marimba(ac, dest, freq, startT, vol, dur){
     try{
-      const o = ac.createOscillator();
-      const g = ac.createGain();
-      o.type = 'sine';
-      o.frequency.value = freq;
-      // Bright transient: instant on, exponential decay
-      g.gain.setValueAtTime(vol, startT);
-      g.gain.setTargetAtTime(0, startT + 0.005, dur * 0.18);
-      o.connect(g); g.connect(dest);
-      o.start(startT); o.stop(startT + dur + 0.15);
+      // Fundamental
+      const o1 = ac.createOscillator(); const g1 = ac.createGain();
+      o1.type = 'sine'; o1.frequency.value = freq;
+      g1.gain.setValueAtTime(vol, startT);
+      g1.gain.setTargetAtTime(0, startT + 0.003, dur * 0.13);
+      o1.connect(g1); g1.connect(dest);
+      o1.start(startT); o1.stop(startT + dur + 0.3);
+      // 4th harmonic (marimba characteristic)
+      const o2 = ac.createOscillator(); const g2 = ac.createGain();
+      o2.type = 'sine'; o2.frequency.value = freq * 4;
+      g2.gain.setValueAtTime(vol * 0.15, startT);
+      g2.gain.setTargetAtTime(0, startT + 0.001, dur * 0.04); // decays faster
+      o2.connect(g2); g2.connect(dest);
+      o2.start(startT); o2.stop(startT + dur * 0.2 + 0.05);
     }catch(e){}
   }
 
-  // Add a gentle harmonic overtone for warmth (triangle, very quiet)
-  function _warm(ac, dest, freq, startT, vol, dur){
+  // ── BANJO PLUCK bass: sawtooth -> low-pass, medium decay ─────────────────
+  function _banjo(ac, dest, freq, startT, vol){
     try{
-      const o = ac.createOscillator();
-      const g = ac.createGain();
-      o.type = 'triangle';
-      o.frequency.value = freq * 2;
-      g.gain.setValueAtTime(vol * 0.28, startT);
-      g.gain.setTargetAtTime(0, startT + 0.004, dur * 0.14);
-      o.connect(g); g.connect(dest);
-      o.start(startT); o.stop(startT + dur + 0.1);
+      const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = 'sawtooth'; o.frequency.value = freq;
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = freq * 3.5;
+      g.gain.setValueAtTime(vol * 0.5, startT);
+      g.gain.setTargetAtTime(0, startT + 0.008, 0.22);
+      o.connect(lp); lp.connect(g); g.connect(dest);
+      o.start(startT); o.stop(startT + 0.8);
     }catch(e){}
   }
 
-  // Bass pluck: low sine, medium decay
-  function _bass(ac, dest, freq, startT, vol){
+  // ── ACCORDION chord pad: two detuned sines + slow attack ─────────────────
+  function _chord(ac, dest, freqs, startT, vol, dur){
     try{
-      const o = ac.createOscillator();
-      const g = ac.createGain();
-      o.type = 'sine';
-      o.frequency.value = freq;
-      g.gain.setValueAtTime(vol * 0.55, startT);
-      g.gain.setTargetAtTime(0, startT + 0.01, 0.18);
-      o.connect(g); g.connect(dest);
-      o.start(startT); o.stop(startT + 0.6);
+      freqs.forEach((f, i) => {
+        const o = ac.createOscillator(); const g = ac.createGain();
+        o.type = 'triangle';
+        o.frequency.value = f * (1 + (i % 2 === 0 ? 0.002 : -0.002)); // slight detune
+        g.gain.setValueAtTime(0, startT);
+        g.gain.linearRampToValueAtTime(vol * 0.055, startT + 0.06);
+        g.gain.setTargetAtTime(0, startT + dur * 0.6, dur * 0.25);
+        o.connect(g); g.connect(dest);
+        o.start(startT); o.stop(startT + dur + 0.15);
+      });
     }catch(e){}
   }
 
-  // Soft shaker tick: filtered white noise, very quiet
-  function _shake(ac, dest, startT, vol){
+  // ── WOODBLOCK tick: filtered noise transient ──────────────────────────────
+  function _wood(ac, dest, startT, vol, accent){
     try{
-      const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.04), ac.sampleRate);
+      const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.025), ac.sampleRate);
       const d = buf.getChannelData(0);
-      for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * Math.exp(-i/(ac.sampleRate*0.008));
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(ac.sampleRate*0.004));
       const src = ac.createBufferSource(); src.buffer = buf;
-      const hp  = ac.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=6000;
-      const g   = ac.createGain(); g.gain.setValueAtTime(vol * 0.07, startT);
-      src.connect(hp); hp.connect(g); g.connect(dest);
+      const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=accent?900:1600; bp.Q.value=3;
+      const g = ac.createGain(); g.gain.setValueAtTime(vol*(accent?0.12:0.07), startT);
+      src.connect(bp); bp.connect(g); g.connect(dest);
       src.start(startT);
     }catch(e){}
   }
 
-  // ── music sequence data ───────────────────────────────────────────────────
-  // Each entry: [beatIndex, layer, freq]
-  // layer: 'M'=melody xylo, 'B'=bass pluck, 'S'=shaker tick
-  // beatIndex counts half-beats (so 0.5 beat steps). One bar = 8 units.
-  //
-  // The full song is 32 bars long (~80 s @ 96 BPM), then loops.
-  // BPM=96 → beat=0.625s → half-beat=0.3125s → bar=2.5s → 32 bars=80s
+  // ── MUSIC DATA ─────────────────────────────────────────────────────────────
+  // 100 BPM — beat=0.6s, half-beat=0.3s, bar=2.4s, 32 bars=76.8s
+  const BPM  = 100;
+  const BEAT = 60 / BPM;        // 0.6 s
+  const HB   = BEAT / 2;        // 0.3 s
+  const BAR  = BEAT * 4;
+  const TOTAL_BARS = 32;
+  const TOTAL_HB   = TOTAL_BARS * 8; // 256 half-beats
 
-  const BPM  = 96;
-  const BEAT = 60 / BPM;          // 0.625 s
-  const HB   = BEAT / 2;          // 0.3125 s  (half-beat grid)
-  const BAR  = BEAT * 4;          // 2.5 s
-  const TOTAL_BARS = 32;          // 80 s before loop
-  const LOOP_DUR   = TOTAL_BARS * BAR;
+  // Chord progressions per bar (I-V-vi-IV in G major — warm, cozy)
+  // G=G3, D=D3, Em: E3, C=C3
+  const _CHORD_PROG = [
+    // bars 0-3
+    [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]],
+    // bars 4-7
+    [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.C3,_N.G3,_N.E4]], [[_N.G3,_N.B3,_N.D4]],
+    // bars 8-11
+    [[_N.G3,_N.B3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]], [[_N.D3,_N.A3,_N.D4]],
+    // bars 12-15
+    [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]],
+    // bars 16-19 (variation)
+    [[_N.C3,_N.G3,_N.E4]], [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.E3,_N.G3,_N.B3]],
+    // bars 20-23
+    [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]],
+    // bars 24-27
+    [[_N.G3,_N.B3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]], [[_N.D3,_N.A3,_N.D4]],
+    // bars 28-31 (wrap)
+    [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.C3,_N.G3,_N.E4]], [[_N.G3,_N.B3,_N.D4]],
+  ];
 
-  // Chord roots for bass (one per bar, 32 bars cycling I-V-vi-IV in C)
-  // Bar numbers 0-31
+  // Bass roots per bar
   const _BASS_ROOT = [
-    _N.C3,_N.G3,_N.A3,_N.F3,  // bars 0-3
-    _N.C3,_N.G3,_N.F3,_N.C3,  // bars 4-7
-    _N.C3,_N.E3,_N.A3,_N.F3,  // bars 8-11
-    _N.C3,_N.G3,_N.A3,_N.F3,  // bars 12-15
-    _N.F3,_N.C3,_N.G3,_N.A3,  // bars 16-19
-    _N.C3,_N.G3,_N.A3,_N.F3,  // bars 20-23
-    _N.C3,_N.E3,_N.F3,_N.G3,  // bars 24-27
-    _N.C3,_N.G3,_N.F3,_N.C3,  // bars 28-31
+    _N.G3,_N.D3,_N.E3,_N.C3,  // 0-3
+    _N.G3,_N.D3,_N.C3,_N.G3,  // 4-7
+    _N.G3,_N.E3,_N.C3,_N.D3,  // 8-11
+    _N.G3,_N.D3,_N.E3,_N.C3,  // 12-15
+    _N.C3,_N.G3,_N.D3,_N.E3,  // 16-19
+    _N.G3,_N.D3,_N.E3,_N.C3,  // 20-23
+    _N.G3,_N.E3,_N.C3,_N.D3,  // 24-27
+    _N.G3,_N.D3,_N.C3,_N.G3,  // 28-31
   ];
 
-  // Melody: sequence of [halfBeat, freq] pairs, covering 32 bars (256 half-beats)
-  // Written as [hb, f] — hb is absolute half-beat index within the full loop
+  // Melody in G major (G4-G5 range) — marimba, laidback slightly-behind-beat feel
+  // hb = half-beat index (0-255), freq = note
   const _MEL = [
-    // ── PHRASE A (bars 0-3): bright opening skip ──
-    [0,_N.E5],[2,_N.G5],[3,_N.A5],[4,_N.G5],[6,_N.E5],[7,_N.D5],
-    [8,_N.C5],[10,_N.E5],[12,_N.G5],[14,_N.A5],
-    [16,_N.G5],[17,_N.F5],[18,_N.E5],[20,_N.D5],[22,_N.C5],[23,_N.E5],
-    [24,_N.G5],[26,_N.A5],[28,_N.G5],[30,_N.E5],
-    // ── PHRASE B (bars 4-7): playful bounce ──
-    [32,_N.C5],[33,_N.E5],[34,_N.G5],[36,_N.E5],[37,_N.G5],[38,_N.A5],
-    [40,_N.G5],[42,_N.F5],[44,_N.E5],[46,_N.D5],
-    [48,_N.E5],[50,_N.G5],[51,_N.A5],[52,_N.B5],[54,_N.A5],[56,_N.G5],[58,_N.E5],
-    [60,_N.D5],[62,_N.C5],
-    // ── PHRASE C (bars 8-11): gentle wave ──
-    [64,_N.A5],[66,_N.G5],[68,_N.E5],[70,_N.F5],
-    [72,_N.E5],[74,_N.D5],[76,_N.C5],[78,_N.D5],
-    [80,_N.E5],[82,_N.G5],[84,_N.A5],[86,_N.G5],
-    [88,_N.F5],[90,_N.E5],[92,_N.D5],[94,_N.C5],
-    // ── PHRASE D (bars 12-15): call & echo ──
-    [96,_N.C5],[97,_N.E5],[98,_N.G5],[100,_N.A5],[102,_N.G5],[104,_N.F5],
-    [106,_N.E5],[108,_N.D5],[110,_N.C5],
-    [112,_N.E5],[114,_N.G5],[116,_N.E5],[118,_N.D5],
-    [120,_N.C5],[122,_N.D5],[124,_N.E5],[126,_N.G5],
-    // ── PHRASE E (bars 16-19): skipping higher ──
-    [128,_N.G5],[129,_N.A5],[130,_N.B5],[132,_N.A5],[134,_N.G5],[136,_N.F5],
-    [138,_N.E5],[140,_N.D5],[142,_N.C5],
-    [144,_N.C5],[145,_N.E5],[146,_N.G5],[148,_N.A5],[150,_N.G5],
-    [152,_N.F5],[154,_N.E5],[156,_N.D5],[158,_N.E5],
-    // ── PHRASE F (bars 20-23): bright trill feel ──
-    [160,_N.E5],[161,_N.G5],[162,_N.E5],[163,_N.G5],[164,_N.A5],[166,_N.G5],
-    [168,_N.F5],[170,_N.E5],[172,_N.G5],[174,_N.A5],
-    [176,_N.B5],[178,_N.A5],[180,_N.G5],[182,_N.F5],
-    [184,_N.E5],[186,_N.D5],[188,_N.C5],[190,_N.E5],
-    // ── PHRASE G (bars 24-27): descending run ──
-    [192,_N.A5],[194,_N.G5],[196,_N.F5],[198,_N.E5],
-    [200,_N.D5],[202,_N.C5],[204,_N.D5],[206,_N.E5],
-    [208,_N.G5],[210,_N.A5],[212,_N.G5],[214,_N.E5],
-    [216,_N.D5],[218,_N.C5],[220,_N.E5],[222,_N.G5],
-    // ── PHRASE H (bars 28-31): cheerful wrap-up ──
-    [224,_N.C5],[225,_N.E5],[226,_N.G5],[228,_N.A5],[230,_N.G5],
-    [232,_N.F5],[234,_N.E5],[236,_N.D5],[238,_N.C5],
-    [240,_N.E5],[242,_N.G5],[244,_N.A5],[246,_N.G5],
-    [248,_N.E5],[250,_N.D5],[252,_N.C5],[254,_N.E5],
+    // ── PHRASE A (bars 0-3): cheerful opening — G major pentatonic skip ──
+    [1,_N.D5],[3,_N.G5],[5,_N.A5],[6,_N.G5],[9,_N.E5],[11,_N.D5],
+    [13,_N.B4],[15,_N.G4],
+    [17,_N.A4],[19,_N.B4],[21,_N.D5],[23,_N.G5],
+    [25,_N.A5],[27,_N.G5],[29,_N.E5],[31,_N.D5],
+    // ── PHRASE B (bars 4-7): bouncy mid section ──
+    [33,_N.G5],[35,_N.E5],[37,_N.D5],[38,_N.E5],
+    [41,_N.G5],[43,_N.A5],[45,_N.G5],[47,_N.E5],
+    [49,_N.D5],[51,_N.B4],[53,_N.D5],[55,_N.G5],
+    [57,_N.A5],[59,_N.G5],[61,_N.E5],[63,_N.D5],
+    // ── PHRASE C (bars 8-11): gentle descend ──
+    [65,_N.B5],[67,_N.A5],[69,_N.G5],[71,_N.E5],
+    [73,_N.D5],[75,_N.B4],[77,_N.D5],[79,_N.G5],
+    [81,_N.A5],[83,_N.G5],[85,_N.E5],[87,_N.D5],
+    [89,_N.B4],[91,_N.G4],[93,_N.A4],[95,_N.B4],
+    // ── PHRASE D (bars 12-15): call & answer ──
+    [97,_N.D5],[99,_N.G5],[101,_N.A5],[103,_N.G5],
+    [105,_N.E5],[107,_N.D5],[109,_N.B4],[111,_N.G4],
+    [113,_N.B4],[115,_N.D5],[117,_N.G5],[119,_N.A5],
+    [121,_N.G5],[123,_N.E5],[125,_N.D5],[127,_N.G5],
+    // ── PHRASE E (bars 16-19): higher energy climb ──
+    [129,_N.A5],[131,_N.B5],[133,_N.A5],[135,_N.G5],
+    [137,_N.E5],[139,_N.D5],[141,_N.G5],[143,_N.A5],
+    [145,_N.B5],[147,_N.A5],[149,_N.G5],[151,_N.E5],
+    [153,_N.D5],[155,_N.B4],[157,_N.D5],[159,_N.G5],
+    // ── PHRASE F (bars 20-23): playful trill-like ──
+    [161,_N.G5],[162,_N.A5],[163,_N.G5],[165,_N.E5],[167,_N.D5],
+    [169,_N.G5],[171,_N.A5],[173,_N.B5],[175,_N.A5],
+    [177,_N.G5],[179,_N.E5],[181,_N.D5],[183,_N.B4],
+    [185,_N.D5],[187,_N.G5],[189,_N.A5],[191,_N.G5],
+    // ── PHRASE G (bars 24-27): rolling descend ──
+    [193,_N.B5],[195,_N.A5],[197,_N.G5],[199,_N.E5],
+    [201,_N.D5],[203,_N.G5],[205,_N.A5],[207,_N.G5],
+    [209,_N.E5],[211,_N.D5],[213,_N.B4],[215,_N.D5],
+    [217,_N.G5],[219,_N.E5],[221,_N.D5],[223,_N.B4],
+    // ── PHRASE H (bars 28-31): warm cheerful close ──
+    [225,_N.G4],[227,_N.B4],[229,_N.D5],[231,_N.G5],
+    [233,_N.A5],[235,_N.G5],[237,_N.E5],[239,_N.D5],
+    [241,_N.B4],[243,_N.D5],[245,_N.G5],[247,_N.A5],
+    [249,_N.G5],[251,_N.E5],[253,_N.D5],[255,_N.G5],
   ];
 
-  // Build a map: halfBeat → [melFreq, ...] for quick lookup
   const _melMap = {};
   for(const [hb, f] of _MEL){ (_melMap[hb] || (_melMap[hb]=[])).push(f); }
 
-  // Total half-beats in loop
-  const TOTAL_HB = TOTAL_BARS * 8; // 256
-
-  // ── rolling scheduler state ───────────────────────────────────────────────
-  let _schedHB   = 0;    // next half-beat index to schedule (0-based)
-  let _schedTime = 0;    // AudioContext time that half-beat 0 started
-  const LOOKAHEAD = BEAT * 3;   // schedule 3 beats ahead
-  const INTERVAL  = BEAT * 1.5; // check every 1.5 beats (ms)
+  // ── rolling scheduler ─────────────────────────────────────────────────────
+  let _schedHB   = 0;
+  let _schedTime = 0;
+  const LOOKAHEAD = BEAT * 3;
+  const INTERVAL  = BEAT * 1.5;
 
   function _scheduleHB(ac, dest, hbIdx, t){
-    // Which bar are we in?
-    const bar = Math.floor(hbIdx / 8);
-    const beatInBar = (hbIdx % 8) / 2; // 0,0.5,1,1.5,...
-    const vol = settings.masterVolume * 0.14; // quiet overall
+    const bar      = Math.floor(hbIdx / 8);
+    const hbInBar  = hbIdx % 8;
+    const vol      = settings.masterVolume * 0.13;
 
-    // Melody note?
+    // ── Marimba melody ──
     const mfreqs = _melMap[hbIdx % TOTAL_HB];
     if(mfreqs){
-      for(const f of mfreqs){
-        _xylo(ac, dest, f, t, vol, 0.32);
-        _warm(ac, dest, f, t, vol, 0.32);
-      }
+      for(const f of mfreqs) _marimba(ac, dest, f, t, vol, 0.38);
     }
 
-    // Bass on beats 1, 2, 3, 4 (hb indices 0,2,4,6 within bar)
-    const hbInBar = hbIdx % 8;
-    if(hbInBar % 2 === 0){
+    // ── Banjo bass pluck on beats 1 & 3 (hbInBar 0 & 4), lighter on 2 & 4 ──
+    if(hbInBar === 0 || hbInBar === 4){
       const root = _BASS_ROOT[bar % _BASS_ROOT.length];
-      _bass(ac, dest, root, t, vol);
-      // Fifth on beat 3 for movement
-      if(hbInBar === 4) _bass(ac, dest, root * 1.5, t, vol * 0.6);
+      _banjo(ac, dest, root, t, vol * 1.1);
+      // Fifth on beat 3 for a little walk
+      if(hbInBar === 4) _banjo(ac, dest, root * 1.5, t + HB * 0.5, vol * 0.55);
+    }
+    if(hbInBar === 2 || hbInBar === 6){
+      const root = _BASS_ROOT[bar % _BASS_ROOT.length];
+      _banjo(ac, dest, root, t, vol * 0.55);
     }
 
-    // Shaker on every half-beat (very quiet texture)
-    _shake(ac, dest, t, vol);
+    // ── Accordion chord pad: one per bar on beat 1 ──
+    if(hbInBar === 0){
+      const chordFreqs = _CHORD_PROG[bar % _CHORD_PROG.length][0];
+      _chord(ac, dest, chordFreqs, t, vol, BAR * 0.85);
+    }
+
+    // ── Woodblock: accent on beats 1 & 3, lighter tap on 2 & 4 ──
+    if(hbInBar === 0) _wood(ac, dest, t, vol, true);
+    else if(hbInBar === 4) _wood(ac, dest, t, vol, true);
+    else if(hbInBar === 2 || hbInBar === 6) _wood(ac, dest, t, vol, false);
   }
 
   function _musicTick(){
@@ -573,16 +603,16 @@ const SFX = (() => {
   function startMusic(){
     if(_musicStarted) return;
     _musicStarted = true;
-    if(settings.mute) return;
     try{
       const ac = getCtx();
       const doStart = () => {
         _musicGain = ac.createGain();
-        _musicGain.gain.setValueAtTime(1.0, ac.currentTime); // volume controlled per-note via vol param
+        const shouldMute = settings.mute || settings.muteMusic;
+        _musicGain.gain.setValueAtTime(shouldMute ? 0 : 1.0, ac.currentTime);
         _musicGain.connect(ac.destination);
         _schedHB   = 0;
         _schedTime = ac.currentTime + 0.08; // tiny start delay
-        _musicTick();
+        if(!shouldMute) _musicTick();
       };
       if(ac.state === 'suspended'){ ac.resume().then(doStart); } else { doStart(); }
     }catch(e){}
@@ -595,13 +625,29 @@ const SFX = (() => {
   }
 
   function syncMusicVolume(){
-    // Volume is baked into each note via settings.masterVolume at schedule time,
-    // so nothing to do here — new notes will automatically pick up the new level.
-    // If muted, pause scheduling.
-    if(settings.mute && _musicTimer !== null){
+    // Instantly apply mute/unmute via the master gain node (no scheduling lag)
+    const shouldMute = settings.mute || settings.muteMusic;
+    if(_musicGain){
+      try{
+        const ac = getCtx();
+        const now = ac.currentTime;
+        if(shouldMute){
+          _musicGain.gain.setTargetAtTime(0, now, 0.04); // fast ~40ms fade to silence
+        } else {
+          _musicGain.gain.setTargetAtTime(1.0, now, 0.04);
+        }
+      }catch(e){}
+    }
+    // Pause/resume the scheduler too
+    if(shouldMute && _musicTimer !== null){
       clearTimeout(_musicTimer); _musicTimer = null;
-    } else if(!settings.mute && _musicStarted && _musicTimer === null){
-      _musicTick();
+    } else if(!shouldMute && _musicStarted && _musicTimer === null){
+      // Resume from where we would be (advance schedule pointer past silence gap)
+      try{
+        const ac = getCtx();
+        _schedTime = ac.currentTime - _schedHB * HB + 0.08; // re-anchor to now
+        _musicTick();
+      }catch(e){ _musicTick(); }
     }
   }
 
@@ -3974,10 +4020,11 @@ function drawSoundPanel(){
 
   // ── MUTE TOGGLES ──
   const toggles = [
-    { key:'mute',         label:'Mute All',       color:'#ff4757' },
-    { key:'muteUI',       label:'Mute UI Sounds', color:'#fd79a8' },
-    { key:'muteFishing',  label:'Mute Fishing',   color:'#0984e3' },
-    { key:'muteQuests',   label:'Mute Quests',    color:'#00b894' },
+    { key:'mute',         label:'Mute All',        color:'#ff4757' },
+    { key:'muteMusic',    label:'Mute Music',      color:'#6c5ce7' },
+    { key:'muteUI',       label:'Mute UI Sounds',  color:'#fd79a8' },
+    { key:'muteFishing',  label:'Mute Fishing',    color:'#0984e3' },
+    { key:'muteQuests',   label:'Mute Quests',     color:'#00b894' },
   ];
 
   const tCols = 2;
