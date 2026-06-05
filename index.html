@@ -71,8 +71,11 @@ const SFX = (() => {
     if(category==='quest' && settings.muteQuests) return;
     try {
       const ac = getCtx();
-      if(ac.state === 'suspended') ac.resume();
-      fn(ac, settings.masterVolume);
+      if(ac.state === 'suspended'){
+        ac.resume().then(() => { try{ fn(ac, settings.masterVolume); }catch(e){} });
+      } else {
+        fn(ac, settings.masterVolume);
+      }
     } catch(e){}
   }
 
@@ -107,18 +110,20 @@ const SFX = (() => {
     reelTickCount = 0;
     try {
       const ac = getCtx();
-      if(ac.state === 'suspended') ac.resume();
-      // Start slow, speed up over ~0.5s — like a spool catching speed
-      let delay = 120; // ms between clicks
-      const minDelay = 38;
-      function scheduleTick(){
-        if(reelInterval === null) return;
-        _reelTick(ac, settings.masterVolume);
-        reelTickCount++;
-        delay = Math.max(minDelay, delay * 0.88);
-        reelInterval = setTimeout(scheduleTick, delay);
-      }
-      reelInterval = setTimeout(scheduleTick, 0);
+      const doReel = () => {
+        // Start slow, speed up over ~0.5s — like a spool catching speed
+        let delay = 120; // ms between clicks
+        const minDelay = 38;
+        function scheduleTick(){
+          if(reelInterval === null) return;
+          _reelTick(ac, settings.masterVolume);
+          reelTickCount++;
+          delay = Math.max(minDelay, delay * 0.88);
+          reelInterval = setTimeout(scheduleTick, delay);
+        }
+        reelInterval = setTimeout(scheduleTick, 0);
+      };
+      if(ac.state === 'suspended'){ ac.resume().then(doReel); } else { doReel(); }
     } catch(e){}
   }
 
@@ -308,7 +313,302 @@ const SFX = (() => {
     }, 'ui');
   }
 
-  return { settings, startReel, stopReel, fishCaught, questDone, coins, panelOpen, panelClose, buttonClick, error };
+  // ── CHEST HIT: woody thunk + coin shimmer ──
+  function chestHit(){
+    play((ac, vol) => {
+      const t = ac.currentTime;
+
+      // 1. Hollow wooden thunk
+      const thunkBuf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.14), ac.sampleRate);
+      const td = thunkBuf.getChannelData(0);
+      for(let i = 0; i < td.length; i++){
+        const env = Math.exp(-i / (ac.sampleRate * 0.045));
+        td[i] = (Math.random() * 2 - 1) * env;
+      }
+      const thunkSrc = ac.createBufferSource();
+      thunkSrc.buffer = thunkBuf;
+      const lp = ac.createBiquadFilter(); lp.type = 'bandpass'; lp.frequency.value = 420; lp.Q.value = 1.8;
+      const tg = ac.createGain(); tg.gain.setValueAtTime(vol * 0.85, t);
+      thunkSrc.connect(lp); lp.connect(tg); tg.connect(ac.destination);
+      thunkSrc.start(t);
+
+      // 2. Metal latch clank
+      const clankBuf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.06), ac.sampleRate);
+      const cd = clankBuf.getChannelData(0);
+      for(let i = 0; i < cd.length; i++){
+        cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.012));
+      }
+      const clankSrc = ac.createBufferSource();
+      clankSrc.buffer = clankBuf;
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2400;
+      const cg = ac.createGain(); cg.gain.setValueAtTime(vol * 0.50, t + 0.025);
+      clankSrc.connect(hp); hp.connect(cg); cg.connect(ac.destination);
+      clankSrc.start(t + 0.025);
+
+      // 3. Glittery coin shimmer — three quick ascending pings
+      [0, 0.055, 0.105].forEach((delay, i) => {
+        const osc = ac.createOscillator();
+        const og = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200 + i * 320, t + delay);
+        osc.frequency.exponentialRampToValueAtTime(1800 + i * 320, t + delay + 0.14);
+        og.gain.setValueAtTime(vol * 0.18, t + delay);
+        og.gain.linearRampToValueAtTime(0, t + delay + 0.20);
+        osc.connect(og); og.connect(ac.destination);
+        osc.start(t + delay); osc.stop(t + delay + 0.22);
+      });
+    }, 'fishing');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // BACKGROUND MUSIC — rolling lookahead scheduler
+  // Schedules only ~2 beats ahead at a time so the audio thread is never
+  // flooded. Instruments are xylophone-style (fast decay sine) + light bass
+  // pluck + soft shaker — airy and lighthearted, never heavy.
+  // Total sequence: 256 bars @ 96 BPM ≈ 10 min 40 s before looping.
+  // ══════════════════════════════════════════════════════════════════════════
+  let _musicStarted = false;
+  let _musicGain    = null;
+  let _musicTimer   = null;   // the single rolling setTimeout handle
+
+  // ── note helpers ──────────────────────────────────────────────────────────
+  // Build frequency table from MIDI note numbers (A4=440 Hz, MIDI 69)
+  function _mf(midi){ return 440 * Math.pow(2, (midi - 69) / 12); }
+  // Named shortcuts used in the sequence
+  const _N = {
+    C4:_mf(60), D4:_mf(62), E4:_mf(64), F4:_mf(65), G4:_mf(67), A4:_mf(69), B4:_mf(71),
+    C5:_mf(72), D5:_mf(74), E5:_mf(76), F5:_mf(77), G5:_mf(79), A5:_mf(81), B5:_mf(83),
+    C3:_mf(48), D3:_mf(50), E3:_mf(52), F3:_mf(53), G3:_mf(55), A3:_mf(57),
+  };
+
+  // ── xylophone-style note: sine with sharp attack, fast decay ──────────────
+  function _xylo(ac, dest, freq, startT, vol, dur){
+    try{
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      // Bright transient: instant on, exponential decay
+      g.gain.setValueAtTime(vol, startT);
+      g.gain.setTargetAtTime(0, startT + 0.005, dur * 0.18);
+      o.connect(g); g.connect(dest);
+      o.start(startT); o.stop(startT + dur + 0.15);
+    }catch(e){}
+  }
+
+  // Add a gentle harmonic overtone for warmth (triangle, very quiet)
+  function _warm(ac, dest, freq, startT, vol, dur){
+    try{
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'triangle';
+      o.frequency.value = freq * 2;
+      g.gain.setValueAtTime(vol * 0.28, startT);
+      g.gain.setTargetAtTime(0, startT + 0.004, dur * 0.14);
+      o.connect(g); g.connect(dest);
+      o.start(startT); o.stop(startT + dur + 0.1);
+    }catch(e){}
+  }
+
+  // Bass pluck: low sine, medium decay
+  function _bass(ac, dest, freq, startT, vol){
+    try{
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(vol * 0.55, startT);
+      g.gain.setTargetAtTime(0, startT + 0.01, 0.18);
+      o.connect(g); g.connect(dest);
+      o.start(startT); o.stop(startT + 0.6);
+    }catch(e){}
+  }
+
+  // Soft shaker tick: filtered white noise, very quiet
+  function _shake(ac, dest, startT, vol){
+    try{
+      const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.04), ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * Math.exp(-i/(ac.sampleRate*0.008));
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const hp  = ac.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=6000;
+      const g   = ac.createGain(); g.gain.setValueAtTime(vol * 0.07, startT);
+      src.connect(hp); hp.connect(g); g.connect(dest);
+      src.start(startT);
+    }catch(e){}
+  }
+
+  // ── music sequence data ───────────────────────────────────────────────────
+  // Each entry: [beatIndex, layer, freq]
+  // layer: 'M'=melody xylo, 'B'=bass pluck, 'S'=shaker tick
+  // beatIndex counts half-beats (so 0.5 beat steps). One bar = 8 units.
+  //
+  // The full song is 32 bars long (~80 s @ 96 BPM), then loops.
+  // BPM=96 → beat=0.625s → half-beat=0.3125s → bar=2.5s → 32 bars=80s
+
+  const BPM  = 96;
+  const BEAT = 60 / BPM;          // 0.625 s
+  const HB   = BEAT / 2;          // 0.3125 s  (half-beat grid)
+  const BAR  = BEAT * 4;          // 2.5 s
+  const TOTAL_BARS = 32;          // 80 s before loop
+  const LOOP_DUR   = TOTAL_BARS * BAR;
+
+  // Chord roots for bass (one per bar, 32 bars cycling I-V-vi-IV in C)
+  // Bar numbers 0-31
+  const _BASS_ROOT = [
+    _N.C3,_N.G3,_N.A3,_N.F3,  // bars 0-3
+    _N.C3,_N.G3,_N.F3,_N.C3,  // bars 4-7
+    _N.C3,_N.E3,_N.A3,_N.F3,  // bars 8-11
+    _N.C3,_N.G3,_N.A3,_N.F3,  // bars 12-15
+    _N.F3,_N.C3,_N.G3,_N.A3,  // bars 16-19
+    _N.C3,_N.G3,_N.A3,_N.F3,  // bars 20-23
+    _N.C3,_N.E3,_N.F3,_N.G3,  // bars 24-27
+    _N.C3,_N.G3,_N.F3,_N.C3,  // bars 28-31
+  ];
+
+  // Melody: sequence of [halfBeat, freq] pairs, covering 32 bars (256 half-beats)
+  // Written as [hb, f] — hb is absolute half-beat index within the full loop
+  const _MEL = [
+    // ── PHRASE A (bars 0-3): bright opening skip ──
+    [0,_N.E5],[2,_N.G5],[3,_N.A5],[4,_N.G5],[6,_N.E5],[7,_N.D5],
+    [8,_N.C5],[10,_N.E5],[12,_N.G5],[14,_N.A5],
+    [16,_N.G5],[17,_N.F5],[18,_N.E5],[20,_N.D5],[22,_N.C5],[23,_N.E5],
+    [24,_N.G5],[26,_N.A5],[28,_N.G5],[30,_N.E5],
+    // ── PHRASE B (bars 4-7): playful bounce ──
+    [32,_N.C5],[33,_N.E5],[34,_N.G5],[36,_N.E5],[37,_N.G5],[38,_N.A5],
+    [40,_N.G5],[42,_N.F5],[44,_N.E5],[46,_N.D5],
+    [48,_N.E5],[50,_N.G5],[51,_N.A5],[52,_N.B5],[54,_N.A5],[56,_N.G5],[58,_N.E5],
+    [60,_N.D5],[62,_N.C5],
+    // ── PHRASE C (bars 8-11): gentle wave ──
+    [64,_N.A5],[66,_N.G5],[68,_N.E5],[70,_N.F5],
+    [72,_N.E5],[74,_N.D5],[76,_N.C5],[78,_N.D5],
+    [80,_N.E5],[82,_N.G5],[84,_N.A5],[86,_N.G5],
+    [88,_N.F5],[90,_N.E5],[92,_N.D5],[94,_N.C5],
+    // ── PHRASE D (bars 12-15): call & echo ──
+    [96,_N.C5],[97,_N.E5],[98,_N.G5],[100,_N.A5],[102,_N.G5],[104,_N.F5],
+    [106,_N.E5],[108,_N.D5],[110,_N.C5],
+    [112,_N.E5],[114,_N.G5],[116,_N.E5],[118,_N.D5],
+    [120,_N.C5],[122,_N.D5],[124,_N.E5],[126,_N.G5],
+    // ── PHRASE E (bars 16-19): skipping higher ──
+    [128,_N.G5],[129,_N.A5],[130,_N.B5],[132,_N.A5],[134,_N.G5],[136,_N.F5],
+    [138,_N.E5],[140,_N.D5],[142,_N.C5],
+    [144,_N.C5],[145,_N.E5],[146,_N.G5],[148,_N.A5],[150,_N.G5],
+    [152,_N.F5],[154,_N.E5],[156,_N.D5],[158,_N.E5],
+    // ── PHRASE F (bars 20-23): bright trill feel ──
+    [160,_N.E5],[161,_N.G5],[162,_N.E5],[163,_N.G5],[164,_N.A5],[166,_N.G5],
+    [168,_N.F5],[170,_N.E5],[172,_N.G5],[174,_N.A5],
+    [176,_N.B5],[178,_N.A5],[180,_N.G5],[182,_N.F5],
+    [184,_N.E5],[186,_N.D5],[188,_N.C5],[190,_N.E5],
+    // ── PHRASE G (bars 24-27): descending run ──
+    [192,_N.A5],[194,_N.G5],[196,_N.F5],[198,_N.E5],
+    [200,_N.D5],[202,_N.C5],[204,_N.D5],[206,_N.E5],
+    [208,_N.G5],[210,_N.A5],[212,_N.G5],[214,_N.E5],
+    [216,_N.D5],[218,_N.C5],[220,_N.E5],[222,_N.G5],
+    // ── PHRASE H (bars 28-31): cheerful wrap-up ──
+    [224,_N.C5],[225,_N.E5],[226,_N.G5],[228,_N.A5],[230,_N.G5],
+    [232,_N.F5],[234,_N.E5],[236,_N.D5],[238,_N.C5],
+    [240,_N.E5],[242,_N.G5],[244,_N.A5],[246,_N.G5],
+    [248,_N.E5],[250,_N.D5],[252,_N.C5],[254,_N.E5],
+  ];
+
+  // Build a map: halfBeat → [melFreq, ...] for quick lookup
+  const _melMap = {};
+  for(const [hb, f] of _MEL){ (_melMap[hb] || (_melMap[hb]=[])).push(f); }
+
+  // Total half-beats in loop
+  const TOTAL_HB = TOTAL_BARS * 8; // 256
+
+  // ── rolling scheduler state ───────────────────────────────────────────────
+  let _schedHB   = 0;    // next half-beat index to schedule (0-based)
+  let _schedTime = 0;    // AudioContext time that half-beat 0 started
+  const LOOKAHEAD = BEAT * 3;   // schedule 3 beats ahead
+  const INTERVAL  = BEAT * 1.5; // check every 1.5 beats (ms)
+
+  function _scheduleHB(ac, dest, hbIdx, t){
+    // Which bar are we in?
+    const bar = Math.floor(hbIdx / 8);
+    const beatInBar = (hbIdx % 8) / 2; // 0,0.5,1,1.5,...
+    const vol = settings.masterVolume * 0.14; // quiet overall
+
+    // Melody note?
+    const mfreqs = _melMap[hbIdx % TOTAL_HB];
+    if(mfreqs){
+      for(const f of mfreqs){
+        _xylo(ac, dest, f, t, vol, 0.32);
+        _warm(ac, dest, f, t, vol, 0.32);
+      }
+    }
+
+    // Bass on beats 1, 2, 3, 4 (hb indices 0,2,4,6 within bar)
+    const hbInBar = hbIdx % 8;
+    if(hbInBar % 2 === 0){
+      const root = _BASS_ROOT[bar % _BASS_ROOT.length];
+      _bass(ac, dest, root, t, vol);
+      // Fifth on beat 3 for movement
+      if(hbInBar === 4) _bass(ac, dest, root * 1.5, t, vol * 0.6);
+    }
+
+    // Shaker on every half-beat (very quiet texture)
+    _shake(ac, dest, t, vol);
+  }
+
+  function _musicTick(){
+    if(!_musicStarted || !_musicGain) return;
+    try{
+      const ac = getCtx();
+      if(ac.state === 'suspended') return;
+      const horizon = ac.currentTime + LOOKAHEAD;
+
+      while(true){
+        const hbTime = _schedTime + _schedHB * HB;
+        if(hbTime > horizon) break;
+        _scheduleHB(ac, _musicGain, _schedHB % TOTAL_HB, hbTime);
+        _schedHB++;
+      }
+    }catch(e){}
+    // Re-arm
+    _musicTimer = setTimeout(_musicTick, INTERVAL * 1000 * 0.5);
+  }
+
+  function startMusic(){
+    if(_musicStarted) return;
+    _musicStarted = true;
+    if(settings.mute) return;
+    try{
+      const ac = getCtx();
+      const doStart = () => {
+        _musicGain = ac.createGain();
+        _musicGain.gain.setValueAtTime(1.0, ac.currentTime); // volume controlled per-note via vol param
+        _musicGain.connect(ac.destination);
+        _schedHB   = 0;
+        _schedTime = ac.currentTime + 0.08; // tiny start delay
+        _musicTick();
+      };
+      if(ac.state === 'suspended'){ ac.resume().then(doStart); } else { doStart(); }
+    }catch(e){}
+  }
+
+  function stopMusic(){
+    _musicStarted = false;
+    if(_musicTimer !== null){ clearTimeout(_musicTimer); _musicTimer = null; }
+    if(_musicGain){ try{ _musicGain.disconnect(); }catch(e){} _musicGain = null; }
+  }
+
+  function syncMusicVolume(){
+    // Volume is baked into each note via settings.masterVolume at schedule time,
+    // so nothing to do here — new notes will automatically pick up the new level.
+    // If muted, pause scheduling.
+    if(settings.mute && _musicTimer !== null){
+      clearTimeout(_musicTimer); _musicTimer = null;
+    } else if(!settings.mute && _musicStarted && _musicTimer === null){
+      _musicTick();
+    }
+  }
+
+  return { settings, startReel, stopReel, fishCaught, questDone, coins, panelOpen, panelClose, buttonClick, error, chestHit, startMusic, stopMusic, syncMusicVolume,
+    get masterVolume(){ return settings.masterVolume; },
+    set masterVolume(v){ settings.masterVolume = v; }
+  };
 })();
 
 const canvas = document.getElementById('game');
@@ -517,6 +817,7 @@ const game = {
     step: 0
   },
   messages:[], particles:[], fish:[], chests:[], collectionScroll: 0,
+  bhAngle: 0, galAngle: 0,
   soundSettings: {
     masterVolume: 0.7,
     mute: false,
@@ -1618,7 +1919,9 @@ function updateHarpoon(dt){
       const hit = harpoon.tipX>r.x+4 && harpoon.tipX<r.x+r.w-4 && harpoon.tipY>r.y+4 && harpoon.tipY<r.y+r.h-4;
       if(hit){
         harpoon.chest=chest; chest.caught=true; harpoon.status='back'; game.shake=8;
-        burst(harpoon.tipX,harpoon.tipY,'#ffd700',24); break;
+        burst(harpoon.tipX,harpoon.tipY,'#ffd700',24);
+        SFX.chestHit();
+        break;
       }
     }
     if(!harpoon.chest) for(const fish of game.fish){
@@ -1871,7 +2174,10 @@ function getBgCache(mapId) {
 }
 
 function drawBackground(dt){
-  const map=currentMap(); game.wave += dt*.035;
+  const map=currentMap(); game.wave += dt*.058;
+  // Accumulate rotation angles to avoid floating-point drift on large T values
+  game.bhAngle  = (game.bhAngle  + dt * 0.00055) % (Math.PI * 2);
+  game.galAngle = (game.galAngle + dt * 0.00018) % (Math.PI * 2);
   const T=Date.now()/1000;
   const sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,map.sky1); sky.addColorStop(.45,map.sky2); sky.addColorStop(1,map.depth); ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
 
@@ -2330,30 +2636,46 @@ function drawBackground(dt){
     }
 
     // Black hole — slowly rotating accretion disk + event horizon
-    const bhx=1320, bhy=78, bhR=40;
-    const bhAngle=T*0.22;
+    const bhx=1320, bhy=78, bhR=62;
+    const bhAngle=game.bhAngle;
     ctx.save();
     ctx.translate(bhx,bhy);
 
+    // Far outer glow — wide dark halo
+    const farHalo=ctx.createRadialGradient(0,0,bhR+10,0,0,bhR+80);
+    farHalo.addColorStop(0,'rgba(80,0,180,.22)');
+    farHalo.addColorStop(0.5,'rgba(50,0,120,.10)');
+    farHalo.addColorStop(1,'rgba(20,0,60,0)');
+    ctx.fillStyle=farHalo; ctx.beginPath(); ctx.arc(0,0,bhR+80,0,Math.PI*2); ctx.fill();
+
     // Outer purple glow (drawn BEFORE rotating geometry so it doesn't rotate)
-    const outerHalo=ctx.createRadialGradient(0,0,bhR,0,0,bhR+28);
-    outerHalo.addColorStop(0,'rgba(100,0,200,.30)');
-    outerHalo.addColorStop(0.5,'rgba(80,0,160,.14)');
+    const outerHalo=ctx.createRadialGradient(0,0,bhR,0,0,bhR+40);
+    outerHalo.addColorStop(0,'rgba(140,0,255,.45)');
+    outerHalo.addColorStop(0.5,'rgba(100,0,200,.20)');
     outerHalo.addColorStop(1,'rgba(40,0,80,0)');
-    ctx.fillStyle=outerHalo; ctx.beginPath(); ctx.arc(0,0,bhR+28,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=outerHalo; ctx.beginPath(); ctx.arc(0,0,bhR+40,0,Math.PI*2); ctx.fill();
+
+    // Gravitational lensing rings (static, pulsing)
+    for(let lr=0;lr<3;lr++){
+      const lrR=bhR+48+lr*18;
+      const lrA=0.06+Math.sin(T*0.9+lr*1.1)*0.04;
+      ctx.strokeStyle=`rgba(160,80,255,${lrA})`; ctx.lineWidth=2-lr*0.5;
+      ctx.beginPath(); ctx.arc(0,0,lrR,0,Math.PI*2); ctx.stroke();
+    }
 
     ctx.rotate(bhAngle);
 
     // Accretion disk — drawn as ellipses BEHIND the event horizon
     const diskLayers=[
-      {rx:bhR+22, ry:9,  col0:'rgba(255,160,40,.50)', col1:'rgba(180,60,0,0)'},
-      {rx:bhR+14, ry:7,  col0:'rgba(255,120,20,.65)', col1:'rgba(200,40,0,0)'},
-      {rx:bhR+7,  ry:5,  col0:'rgba(255,200,80,.80)', col1:'rgba(220,80,0,0)'},
+      {rx:bhR+38, ry:14, col0:'rgba(255,140,20,.40)', col1:'rgba(180,60,0,0)'},
+      {rx:bhR+26, ry:11, col0:'rgba(255,100,10,.60)', col1:'rgba(200,40,0,0)'},
+      {rx:bhR+14, ry:8,  col0:'rgba(255,180,50,.78)', col1:'rgba(220,60,0,0)'},
+      {rx:bhR+5,  ry:5,  col0:'rgba(255,220,120,.95)' ,col1:'rgba(240,100,0,0)'},
     ];
     for(const d of diskLayers){
       ctx.save();
       ctx.scale(1, d.ry/d.rx); // squash to ellipse
-      const dg=ctx.createRadialGradient(0,0,bhR-6,0,0,d.rx);
+      const dg=ctx.createRadialGradient(0,0,bhR-8,0,0,d.rx);
       dg.addColorStop(0,d.col0); dg.addColorStop(1,d.col1);
       ctx.fillStyle=dg;
       ctx.beginPath(); ctx.arc(0,0,d.rx,0,Math.PI*2); ctx.fill();
@@ -2363,8 +2685,10 @@ function drawBackground(dt){
     // Blue-shifted lensing arc on top (near side of disk)
     ctx.save();
     ctx.scale(1,0.22);
-    ctx.strokeStyle='rgba(140,200,255,.50)'; ctx.lineWidth=3.5;
-    ctx.beginPath(); ctx.arc(0,0,bhR+10,Math.PI*1.1,Math.PI*1.9); ctx.stroke();
+    ctx.strokeStyle='rgba(160,220,255,.65)'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.arc(0,0,bhR+16,Math.PI*1.08,Math.PI*1.92); ctx.stroke();
+    ctx.strokeStyle='rgba(200,240,255,.35)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,0,bhR+22,Math.PI*1.05,Math.PI*1.95); ctx.stroke();
     ctx.restore();
 
     // Event horizon — pure black on top of everything
@@ -2372,10 +2696,14 @@ function drawBackground(dt){
     ctx.beginPath(); ctx.arc(0,0,bhR,0,Math.PI*2); ctx.fill();
 
     // Thin hot inner ring right at the horizon edge
-    ctx.strokeStyle='rgba(255,210,100,.70)'; ctx.lineWidth=2;
+    ctx.strokeStyle='rgba(255,220,120,.85)'; ctx.lineWidth=3;
     ctx.save(); ctx.scale(1,0.28);
-    ctx.beginPath(); ctx.arc(0,0,bhR+2,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0,0,bhR+3,0,Math.PI*2); ctx.stroke();
     ctx.restore();
+
+    // Photon sphere — faint ring slightly outside horizon
+    ctx.strokeStyle=`rgba(255,200,80,${0.25+Math.sin(T*1.8)*0.12})`; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(0,0,bhR*1.5,0,Math.PI*2); ctx.stroke();
 
     ctx.restore(); // end translate+rotate
   }
@@ -2459,48 +2787,72 @@ function drawBackground(dt){
     const gx=1320, gy=78;
     ctx.save();
     ctx.translate(gx,gy);
-    const galAngle=T*0.08; // very slow rotation
+    const galAngle=game.galAngle; // smooth accumulated rotation
     ctx.rotate(galAngle);
+
+    // Wide outer glow halo
+    const galFarGlow=ctx.createRadialGradient(0,0,0,0,0,110);
+    galFarGlow.addColorStop(0,'rgba(120,40,255,0)');
+    galFarGlow.addColorStop(0.5,'rgba(100,30,220,.08)');
+    galFarGlow.addColorStop(1,'rgba(50,10,120,0)');
+    ctx.fillStyle=galFarGlow; ctx.beginPath(); ctx.arc(0,0,110,0,Math.PI*2); ctx.fill();
+
     // Outer spiral haze rings
-    for(let ring=0;ring<5;ring++){
-      const rr=20+ring*14;
-      const a=0.12-ring*0.018;
+    for(let ring=0;ring<7;ring++){
+      const rr=28+ring*17;
+      const a=0.14-ring*0.015;
       const hg=ctx.createRadialGradient(0,0,rr*0.5,0,0,rr);
-      hg.addColorStop(0,`rgba(160,80,255,${a*2})`); hg.addColorStop(0.5,`rgba(200,100,255,${a})`); hg.addColorStop(1,'rgba(100,40,200,0)');
-      ctx.fillStyle=hg; ctx.beginPath(); ctx.ellipse(0,0,rr,rr*0.38,0,0,Math.PI*2); ctx.fill();
+      hg.addColorStop(0,`rgba(160,80,255,${a*2.2})`); hg.addColorStop(0.5,`rgba(200,100,255,${a})`); hg.addColorStop(1,'rgba(100,40,200,0)');
+      ctx.fillStyle=hg; ctx.beginPath(); ctx.ellipse(0,0,rr,rr*0.40,0,0,Math.PI*2); ctx.fill();
     }
     // Spiral arms — draw as rotated arcs with decreasing opacity
-    const armColors=['rgba(180,120,255,.55)','rgba(120,180,255,.45)'];
-    for(let arm=0;arm<2;arm++){
+    const armColors=['rgba(200,140,255,.65)','rgba(140,200,255,.55)','rgba(255,160,220,.45)'];
+    for(let arm=0;arm<3;arm++){
       ctx.save();
-      ctx.rotate(arm*Math.PI);
-      ctx.strokeStyle=armColors[arm]; ctx.lineWidth=3.5;
+      ctx.rotate(arm*(Math.PI*2/3));
+      ctx.strokeStyle=armColors[arm]; ctx.lineWidth=4.5;
       ctx.beginPath();
-      for(let t2=0;t2<=Math.PI*1.6;t2+=0.08){
-        const r=6+t2*14;
+      for(let t2=0;t2<=Math.PI*1.9;t2+=0.06){
+        const r=7+t2*18;
         const px=Math.cos(t2)*r, py=Math.sin(t2)*r*0.42;
         t2===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
       }
       ctx.stroke();
       // Thinner bright inner arm
-      ctx.strokeStyle=armColors[arm].replace(/[\d.]+\)$/,'0.85)'); ctx.lineWidth=1.5;
+      ctx.strokeStyle=armColors[arm].replace(/[\d.]+\)$/,'0.9)'); ctx.lineWidth=2;
       ctx.beginPath();
-      for(let t2=0;t2<=Math.PI*1.2;t2+=0.06){
-        const r=4+t2*10;
+      for(let t2=0;t2<=Math.PI*1.4;t2+=0.05){
+        const r=5+t2*12;
         const px=Math.cos(t2)*r, py=Math.sin(t2)*r*0.42;
         t2===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
       }
       ctx.stroke();
+      // Dust lane (dark stripe along arm)
+      ctx.strokeStyle='rgba(0,0,20,.20)'; ctx.lineWidth=2;
+      ctx.beginPath();
+      for(let t2=0.2;t2<=Math.PI*1.6;t2+=0.07){
+        const r=9+t2*18;
+        const px=Math.cos(t2)*r, py=Math.sin(t2)*r*0.42;
+        t2===0.2?ctx.moveTo(px,py):ctx.lineTo(px,py);
+      }
+      ctx.stroke();
       ctx.restore();
     }
+    // Star clusters along arms
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    for(let i=0;i<18;i++){
+      const ang=i*0.62; const r=12+i*6.5;
+      const sx=Math.cos(ang)*r, sy=Math.sin(ang)*r*0.42;
+      ctx.beginPath(); ctx.arc(sx,sy,0.8+i%3*0.5,0,Math.PI*2); ctx.fill();
+    }
     // Bright galactic core
-    const coreG=ctx.createRadialGradient(0,0,0,0,0,12);
-    coreG.addColorStop(0,'rgba(255,240,200,1)'); coreG.addColorStop(0.4,'rgba(255,180,100,.8)'); coreG.addColorStop(1,'rgba(180,80,255,0)');
-    ctx.fillStyle=coreG; ctx.beginPath(); ctx.arc(0,0,12,0,Math.PI*2); ctx.fill();
+    const coreG=ctx.createRadialGradient(0,0,0,0,0,18);
+    coreG.addColorStop(0,'rgba(255,250,220,1)'); coreG.addColorStop(0.3,'rgba(255,200,120,.9)'); coreG.addColorStop(0.7,'rgba(200,100,255,.5)'); coreG.addColorStop(1,'rgba(180,80,255,0)');
+    ctx.fillStyle=coreG; ctx.beginPath(); ctx.arc(0,0,18,0,Math.PI*2); ctx.fill();
     // Outer glow
-    const outerG=ctx.createRadialGradient(0,0,0,0,0,72);
-    outerG.addColorStop(0,'rgba(140,60,255,.0)'); outerG.addColorStop(0.5,'rgba(100,40,220,.10)'); outerG.addColorStop(1,'rgba(60,20,160,0)');
-    ctx.fillStyle=outerG; ctx.beginPath(); ctx.arc(0,0,72,0,Math.PI*2); ctx.fill();
+    const outerG=ctx.createRadialGradient(0,0,0,0,0,95);
+    outerG.addColorStop(0,'rgba(140,60,255,.0)'); outerG.addColorStop(0.5,'rgba(100,40,220,.12)'); outerG.addColorStop(1,'rgba(60,20,160,0)');
+    ctx.fillStyle=outerG; ctx.beginPath(); ctx.arc(0,0,95,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
@@ -3647,7 +3999,7 @@ function drawSoundPanel(){
     const icon = on ? '✓ ' : '○ ';
     text(icon + t.label, bx + tW/2, by + tH/2, 20, 'center', on ? '#fff' : '#aaa');
     addButton(bx, by, tW, tH, '',
-      () => { SFX.settings[t.key] = !SFX.settings[t.key]; SFX.buttonClick(); save(); },
+      () => { SFX.settings[t.key] = !SFX.settings[t.key]; SFX.buttonClick(); SFX.syncMusicVolume(); save(); },
       'transparent'
     );
   });
@@ -3704,6 +4056,7 @@ canvas.addEventListener('mousedown', e => {
       _sliderDragging = true;
       const ratio = clamp((p.x - sl.sliderX) / sl.sliderW, 0, 1);
       SFX.settings.masterVolume = ratio;
+      SFX.syncMusicVolume();
       save();
       e.stopPropagation();
       return;
@@ -3720,6 +4073,7 @@ canvas.addEventListener('mousemove', e => {
     const sl = game._soundSlider;
     const ratio = clamp((p.x - sl.sliderX) / sl.sliderW, 0, 1);
     SFX.settings.masterVolume = ratio;
+    SFX.syncMusicVolume();
     save();
   }
 });
@@ -3761,6 +4115,16 @@ if(game.caught === 0){
   game.tutorial.active = true;
   game.tutorial.step = 0;
 }
+
+// Start background music on first user interaction (browser autoplay policy)
+function _onFirstInteraction(){
+  SFX.startMusic();
+  window.removeEventListener('click', _onFirstInteraction);
+  window.removeEventListener('keydown', _onFirstInteraction);
+}
+window.addEventListener('click', _onFirstInteraction);
+window.addEventListener('keydown', _onFirstInteraction);
+
 spawnFish(); requestAnimationFrame(loop);
 </script>
 </body>
