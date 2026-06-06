@@ -1068,9 +1068,9 @@ const game = {
   transition:{active:false, phase:'none', t:0, nextMap:null, boatX:0},
   upgrades:{speed:0, rope:0, luck:0, magnet:0},
   quests:[
-    { text:'Catch 10 fish', goal:10, type:'caught', reward:250, done:false },
-    { text:'Reach max combo level', goal:2, type:'combo', reward:500, done:false },
-    { text:'Catch a rare fish', goal:1, type:'legend', reward:1000, done:false },
+    { text:'Catch 10 fish', goal:10, type:'caught', reward:100, done:false },
+    { text:'Reach max combo level', goal:2, type:'combo', reward:250, done:false },
+    { text:'Catch a legendary fish', goal:1, type:'legend', reward:500, done:false },
     { text:'Catch 100 fish', goal:100, type:'catches', reward:5000, done:false },
     { text:'Catch 1000 fish', goal:1000, type:'lotofcatches', reward:50000, done:false },
     { text:'Catch a Frost Wyrm, Infernal Hydra, and Thunder Phantom', goal:1, type:'elemental_unlock', reward:0, done:false,
@@ -2350,8 +2350,8 @@ function drawTutorial(){
 
   // If final step, draw "Start Fishing!" button
   if(isFinal){
-    const bw=220,bh=48,bx=barX+barW-bw-18,by=barY+barH/2-bh/2;
-    addButton(bx,by,bw,bh,'🎣  Start Fishing!',()=>{ game.tutorial.active=false; },'#2ed573').draw('#2ed573');
+    const bw=240,bh=48,bx=barX+barW-bw-18,by=barY+barH/2-bh/2;
+    addButton(bx,by,bw,bh,'Start Fishing!',()=>{ game.tutorial.active=false; },'#2ed573').draw('#2ed573');
   }
 
   // Progress bar at bottom of bar
