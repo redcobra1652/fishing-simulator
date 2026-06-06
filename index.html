@@ -42,6 +42,27 @@
   </div>
 
 <script>
+// ── roundRect polyfill for older browsers ──
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r){
+    const r0 = typeof r === 'number' ? r : (r[0]||0);
+    const r1 = typeof r === 'number' ? r : (r[1] !== undefined ? r[1] : r0);
+    const r2 = typeof r === 'number' ? r : (r[2] !== undefined ? r[2] : r0);
+    const r3 = typeof r === 'number' ? r : (r[3] !== undefined ? r[3] : r1);
+    const rv = [r0, r1, r2, r3];
+    this.moveTo(x + rv[0], y);
+    this.lineTo(x + w - rv[1], y);
+    this.arcTo(x + w, y, x + w, y + rv[1], rv[1]);
+    this.lineTo(x + w, y + h - rv[2]);
+    this.arcTo(x + w, y + h, x + w - rv[2], y + h, rv[2]);
+    this.lineTo(x + rv[3], y + h);
+    this.arcTo(x, y + h, x, y + h - rv[3], rv[3]);
+    this.lineTo(x, y + rv[0]);
+    this.arcTo(x, y, x + rv[0], y, rv[0]);
+    this.closePath();
+    return this;
+  };
+}
 // =====================================================
 // SOUND ENGINE (Web Audio API — no external files)
 // =====================================================
@@ -872,7 +893,7 @@ const SFX = (() => {
     }
   }
 
-  return { settings, startReel, stopReel, fishCaught, questDone, coins, panelOpen, panelClose, buttonClick, error, chestHit, startMusic, stopMusic, syncMusicVolume,
+  return { settings, startReel, stopReel, fishCaught, questDone, coins, panelOpen, panelClose, buttonClick, error, chestHit, startMusic, stopMusic, syncMusicVolume, getCtx,
     get masterVolume(){ return settings.masterVolume; },
     set masterVolume(v){ settings.masterVolume = v; }
   };
@@ -1065,7 +1086,7 @@ const game = {
   shopTab:'upgrades', panel:null, panelFrom:null, mouseX:750, mouseY:430, last:0, wave:0, shake:0,
   combo:1, comboTimer:0,
   potions:{luck:0, speed:0, coin:0},
-  transition:{active:false, phase:'none', t:0, nextMap:null, boatX:0},
+  transition:{active:false, phase:'none', t:0, nextMap:null, boatX:0, bubbles:[], coverBubbles:[], loadProgress:0, fishWiggle:0, bgBubbleTimer:0, coverAlpha:0, coverPhase:'none', coverT:0},
   upgrades:{speed:0, rope:0, luck:0, magnet:0},
   quests:[
     { text:'Catch 10 fish', goal:10, type:'caught', reward:100, done:false },
@@ -3298,7 +3319,15 @@ function changeMap(id){
     phase: 'sailOut',
     t: 0,
     nextMap: id,
-    boatX: 0
+    boatX: 0,
+    bubbles: [],
+    coverBubbles: [],
+    loadProgress: 0,
+    fishWiggle: 0,
+    bgBubbleTimer: 0,
+    coverAlpha: 0,
+    coverPhase: 'none', // 'fill', 'hold', 'drain'
+    coverT: 0,
   };
 
   harpoon.status = 'still';
@@ -3306,50 +3335,126 @@ function changeMap(id){
   harpoon.chest = null;
 }
 
+// ── BUBBLE SOUND: procedural underwater bubbling ──
+function _playBubbles(){
+  if(SFX.settings.mute || SFX.settings.muteUI) return;
+  try {
+    const ac = SFX.getCtx();
+    if(!ac) return;
+    if(ac.state === 'suspended') ac.resume();
+    const t = ac.currentTime;
+    // Multiple bubble pops at random pitches
+    for(let i = 0; i < 3; i++){
+      const delay = i * 0.065 * Math.random();
+      const freq = 280 + Math.random() * 520;
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + delay);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.7, t + delay + 0.038);
+      g.gain.setValueAtTime(SFX.settings.masterVolume * 0.07, t + delay);
+      g.gain.linearRampToValueAtTime(0, t + delay + 0.055);
+      osc.connect(g); g.connect(ac.destination);
+      osc.start(t + delay); osc.stop(t + delay + 0.07);
+    }
+  } catch(e){}
+}
+
+function _spawnBubble(tr, x, y, speed, size){
+  tr.bubbles.push({ x: x ?? rand(0, W), y: y ?? H + 20, vx: rand(-18,18), vy: -(speed ?? rand(60,160)), r: size ?? rand(4,18), alpha: 0.7 + Math.random()*0.3, wobble: Math.random()*Math.PI*2, life: 1 });
+}
+function _spawnCoverBubble(tr){
+  tr.coverBubbles.push({ x: rand(0, W), y: rand(0, H), r: rand(10, 80), alpha: 0, growing: true, speed: rand(0.6, 2.0) });
+}
+
 function updateTransition(dt){
   if(!game.transition.active) return;
 
-  // convert ms to seconds
   const delta = dt / 1000;
-
   const tr = game.transition;
   tr.t += delta;
+  tr.fishWiggle = (tr.fishWiggle || 0) + delta * 8;
+
+  // spawn background bubbles continuously during sailing phases
+  tr.bgBubbleTimer = (tr.bgBubbleTimer || 0) + delta;
+  if(tr.bgBubbleTimer > 0.08){
+    tr.bgBubbleTimer = 0;
+    _spawnBubble(tr);
+    if(Math.random() < 0.3) _playBubbles();
+  }
+
+  // update floating bubbles
+  for(let i = tr.bubbles.length - 1; i >= 0; i--){
+    const b = tr.bubbles[i];
+    b.y += b.vy * delta;
+    b.x += b.vx * delta + Math.sin(tr.fishWiggle + b.wobble) * 12 * delta;
+    b.life -= delta * 0.4;
+    if(b.y < -30 || b.life <= 0) tr.bubbles.splice(i, 1);
+  }
 
   if(tr.phase === 'sailOut'){
-
     tr.boatX += 900 * delta;
-
+    tr.loadProgress = Math.min(0.45, tr.t / 1.2 * 0.45);
     if(tr.t > 1.2){
-      tr.phase = 'black';
+      tr.phase = 'loading';
       tr.t = 0;
       tr.boatX = -W - 260;
+      // start cover bubble fill
+      tr.coverPhase = 'fill';
+      tr.coverT = 0;
     }
 
-  } else if(tr.phase === 'black'){
+  } else if(tr.phase === 'loading'){
+    tr.loadProgress = Math.min(0.9, 0.45 + tr.t / 2.5 * 0.45);
 
-    if(tr.t > 0.7){
-      game.map = tr.nextMap; _bgCacheMap = null; // invalidate bg cache
+    // update cover bubbles
+    if(tr.coverPhase === 'fill'){
+      tr.coverT += delta;
+      if(tr.coverT < 2.5){
+        // spawn more cover bubbles as we fill
+        if(Math.random() < delta * 12) _spawnCoverBubble(tr);
+        tr.coverAlpha = Math.min(1, tr.coverT / 1.0);
+      }
+      for(let i = tr.coverBubbles.length-1; i>=0; i--){
+        const cb = tr.coverBubbles[i];
+        if(cb.growing){ cb.r += cb.speed * 60 * delta; cb.alpha = Math.min(0.92, cb.alpha + delta*1.5); if(cb.r > 120) cb.growing = false; }
+        else { cb.alpha -= delta * 0.4; if(cb.alpha <= 0) tr.coverBubbles.splice(i,1); }
+      }
+    }
+
+    if(tr.t > 0.5 && game.map !== tr.nextMap){
+      game.map = tr.nextMap; _bgCacheMap = null;
       spawnFish();
       save();
-
-      tr.phase = 'sailIn';
-      tr.t = 0;
     }
 
-  } else if(tr.phase === 'sailIn'){
+    if(tr.t > 2.5){
+      tr.phase = 'reveal';
+      tr.t = 0;
+      tr.loadProgress = 1;
+      tr.coverPhase = 'drain';
+      tr.coverT = 0;
+    }
+
+  } else if(tr.phase === 'reveal'){
+    tr.t += delta;
+    tr.coverAlpha = Math.max(0, 1 - tr.t / 0.9);
+
+    // drain: all cover bubbles fade
+    for(let i = tr.coverBubbles.length-1; i>=0; i--){
+      const cb = tr.coverBubbles[i];
+      cb.alpha -= delta * 2.5;
+      cb.r += 30 * delta;
+      if(cb.alpha <= 0) tr.coverBubbles.splice(i,1);
+    }
+
+    // also drain regular bubbles
+    for(const b of tr.bubbles) b.life -= delta * 2;
 
     tr.boatX += 900 * delta;
 
     if(tr.boatX >= 0){
-
-      game.transition = {
-        active:false,
-        phase:'none',
-        t:0,
-        nextMap:null,
-        boatX:0
-      };
-
+      game.transition = { active:false, phase:'none', t:0, nextMap:null, boatX:0, bubbles:[], coverBubbles:[], loadProgress:0, fishWiggle:0, bgBubbleTimer:0, coverAlpha:0, coverPhase:'none', coverT:0 };
       msg(`Arrived: ${currentMap().name}`, W/2, 120, '#fff16a');
     }
   }
@@ -3359,38 +3464,234 @@ function drawTransition(){
   if(!game.transition.active) return;
 
   const tr = game.transition;
-
-  let alpha = 0;
-
-  if(tr.phase === 'sailOut'){
-    alpha = Math.min(1, tr.t / 1.2);
-  }
-  else if(tr.phase === 'black'){
-    alpha = 1;
-  }
-  else if(tr.phase === 'sailIn'){
-    alpha = Math.max(0, 1 - tr.t / 1.2);
-  }
+  const cw = canvas.width, ch = canvas.height;
 
   ctx.save();
-
-  // 🔥 FULL RESET (THIS IS KEY)
   ctx.setTransform(1,0,0,1,0,0);
   ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = alpha;
 
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // ── dark ocean overlay alpha ──
+  let bgAlpha = 0;
+  if(tr.phase === 'sailOut') bgAlpha = Math.min(1, tr.t / 1.2);
+  else if(tr.phase === 'loading') bgAlpha = 1;
+  else if(tr.phase === 'reveal') bgAlpha = Math.max(0, 1 - tr.t / 0.9);
 
-  ctx.globalAlpha = 1;
-
-  if(tr.phase === 'black'){
-    ctx.fillStyle = '#fff';
-    ctx.font = '42px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('Sailing to new waters...', canvas.width/2, canvas.height/2);
+  if(bgAlpha > 0){
+    // deep ocean gradient bg
+    const grad = ctx.createLinearGradient(0, 0, 0, ch);
+    grad.addColorStop(0, `rgba(2,12,32,${bgAlpha})`);
+    grad.addColorStop(1, `rgba(0,30,60,${bgAlpha})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, cw, ch);
   }
 
+  // ── floating bubbles ──
+  if(bgAlpha > 0.1 && tr.bubbles){
+    for(const b of tr.bubbles){
+      const a = b.alpha * b.life * bgAlpha;
+      if(a <= 0) continue;
+      ctx.globalAlpha = a * 0.75;
+      // bubble: ring + glint
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(140,220,255,0.9)`;
+      ctx.lineWidth = Math.max(1, b.r * 0.18);
+      ctx.stroke();
+      // inner glint
+      ctx.globalAlpha = a * 0.35;
+      ctx.beginPath();
+      ctx.arc(b.x - b.r*0.28, b.y - b.r*0.28, b.r * 0.22, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(220,245,255,0.9)';
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── cover bubbles (screen fill effect) ──
+  if(tr.coverBubbles && tr.coverBubbles.length){
+    for(const cb of tr.coverBubbles){
+      if(cb.alpha <= 0) continue;
+      ctx.globalAlpha = cb.alpha;
+      const bgrad = ctx.createRadialGradient(cb.x - cb.r*0.3, cb.y - cb.r*0.3, cb.r*0.05, cb.x, cb.y, cb.r);
+      bgrad.addColorStop(0, 'rgba(160,230,255,0.85)');
+      bgrad.addColorStop(0.5, 'rgba(20,100,180,0.7)');
+      bgrad.addColorStop(1, 'rgba(0,40,100,0.5)');
+      ctx.beginPath();
+      ctx.arc(cb.x, cb.y, cb.r, 0, Math.PI*2);
+      ctx.fillStyle = bgrad;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(140,220,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── LOADING SCREEN text + progress bar ──
+  if(tr.phase === 'loading' || tr.phase === 'reveal'){
+    const fadeIn = tr.phase === 'loading' ? Math.min(1, tr.t / 0.4) : Math.max(0, 1 - tr.t / 0.5);
+    ctx.globalAlpha = fadeIn;
+
+    // Title
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // "Sailing to new waters" — styled font
+    ctx.font = `bold ${Math.round(cw * 0.038)}px Georgia, "Times New Roman", serif`;
+    // text shadow glow
+    ctx.shadowColor = 'rgba(0, 180, 255, 0.8)';
+    ctx.shadowBlur = 28;
+    ctx.fillStyle = '#c8f0ff';
+    ctx.fillText('⚓  Sailing to New Waters  ⚓', cw/2, ch * 0.36);
+    ctx.shadowBlur = 0;
+
+    // sub text — destination
+    const destName = (maps.find(m => m.id === tr.nextMap)?.name) || 'Unknown Waters';
+    ctx.font = `italic ${Math.round(cw * 0.021)}px Georgia, serif`;
+    ctx.fillStyle = 'rgba(140, 220, 255, 0.85)';
+    ctx.fillText(destName, cw/2, ch * 0.44);
+
+    // ── PROGRESS BAR ──
+    const barW = cw * 0.52;
+    const barH = ch * 0.052;
+    const barX = cw/2 - barW/2;
+    const barY = ch * 0.53;
+    const barR = barH / 2;
+
+    // bar background
+    ctx.globalAlpha = fadeIn * 0.85;
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, barR);
+    ctx.fillStyle = 'rgba(0,20,50,0.75)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(80,180,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // filled portion — ocean gradient
+    const progress = tr.loadProgress || 0;
+    if(progress > 0.01){
+      const fillW = (barW - barH) * progress; // leave room for fish head
+      const fgrad = ctx.createLinearGradient(barX, 0, barX + fillW + barH, 0);
+      fgrad.addColorStop(0, '#0a4a80');
+      fgrad.addColorStop(0.5, '#0984e3');
+      fgrad.addColorStop(1, '#74d7ff');
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, fillW + barH, barH, barR);
+      ctx.fillStyle = fgrad;
+      ctx.fill();
+
+      // animated water shimmer on fill
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, fillW + barH, barH, barR);
+      ctx.clip();
+      const shimX = ((Date.now() / 600) % 1) * (barW + 60) - 30;
+      const shg = ctx.createLinearGradient(barX + shimX - 30, 0, barX + shimX + 30, 0);
+      shg.addColorStop(0, 'rgba(255,255,255,0)');
+      shg.addColorStop(0.5, 'rgba(255,255,255,0.22)');
+      shg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = shg;
+      ctx.fillRect(barX, barY, fillW + barH, barH);
+      ctx.restore();
+    }
+
+    // ── FISH on the front of the bar ──
+    const fishX = barX + (barW - barH) * progress + barH * 0.5;
+    const fishY = barY + barH / 2;
+    const fishR = barH * 0.62;
+    const wiggle = Math.sin(tr.fishWiggle * 1.4) * 0.22; // body wiggle angle
+    const tailWag = Math.sin(tr.fishWiggle * 2.2) * 0.4;
+
+    ctx.save();
+    ctx.globalAlpha = fadeIn;
+    ctx.translate(fishX, fishY);
+    ctx.rotate(wiggle);
+
+    // fish body
+    ctx.beginPath();
+    ctx.ellipse(0, 0, fishR, fishR * 0.58, 0, 0, Math.PI*2);
+    const fishGrad = ctx.createRadialGradient(-fishR*0.2, -fishR*0.15, fishR*0.05, 0, 0, fishR);
+    fishGrad.addColorStop(0, '#ffe066');
+    fishGrad.addColorStop(0.5, '#ff9f43');
+    fishGrad.addColorStop(1, '#e05c00');
+    ctx.fillStyle = fishGrad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,200,80,0.6)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // tail fin — wags
+    ctx.save();
+    ctx.translate(-fishR * 0.82, 0);
+    ctx.rotate(tailWag);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-fishR * 0.55, -fishR * 0.45);
+    ctx.lineTo(-fishR * 0.1, 0);
+    ctx.lineTo(-fishR * 0.55, fishR * 0.45);
+    ctx.closePath();
+    ctx.fillStyle = '#ff7f00';
+    ctx.fill();
+    ctx.restore();
+
+    // top fin
+    ctx.beginPath();
+    ctx.moveTo(fishR*0.1, -fishR*0.55);
+    ctx.quadraticCurveTo(fishR*0.5, -fishR*0.95, fishR*0.7, -fishR*0.52);
+    ctx.lineTo(fishR*0.55, -fishR*0.5);
+    ctx.closePath();
+    ctx.fillStyle = '#ffb347';
+    ctx.fill();
+
+    // eye
+    ctx.beginPath();
+    ctx.arc(fishR*0.45, -fishR*0.12, fishR*0.14, 0, Math.PI*2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(fishR*0.48, -fishR*0.12, fishR*0.08, 0, Math.PI*2);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fill();
+
+    // scale lines
+    ctx.globalAlpha = fadeIn * 0.3;
+    ctx.strokeStyle = '#ff7f00';
+    ctx.lineWidth = 1.5;
+    for(let s = 0; s < 3; s++){
+      ctx.beginPath();
+      ctx.arc(-fishR*0.1 + s*fishR*0.28, 0, fishR*0.32 - s*0.05, Math.PI*0.3, Math.PI*0.85);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    // ── small bubbles rising above bar ──
+    ctx.globalAlpha = fadeIn * 0.65;
+    const bt = Date.now() / 1000;
+    for(let bk = 0; bk < 6; bk++){
+      const bPhase = (bt * 0.7 + bk * 0.38) % 1;
+      const bx = barX + barW * ((bk + 0.5) / 6) + Math.sin(bt*2 + bk) * 12;
+      const by = barY - bPhase * barH * 3.5;
+      const br = 3 + Math.sin(bk * 2.3) * 2;
+      if(bPhase > 0.05 && bPhase < 0.95){
+        ctx.beginPath();
+        ctx.arc(bx, by, br, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(140,220,255,0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    // ── percent label ──
+    ctx.globalAlpha = fadeIn * 0.9;
+    ctx.font = `bold ${Math.round(cw * 0.016)}px Georgia, serif`;
+    ctx.fillStyle = 'rgba(200,240,255,0.85)';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(progress * 100)}%`, cw/2, barY + barH + barH * 0.85);
+  }
+
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 function drawHUD() {
