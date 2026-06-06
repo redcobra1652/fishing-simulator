@@ -2178,9 +2178,11 @@ function ropeRange(){ return 400 + game.upgrades.rope*100/3; }
 function launch(){
   if(game.panel || game.transition.active) return;
   if(harpoon.status!=='still') return;
-  // Block firing during tutorial except steps 1-2 (where firing is the lesson)
+  // Block firing during tutorial except during fishing steps
   if(game.tutorial.active && game.tutorial.step === 0) return;
-  if(game.tutorial.active && game.tutorial.step > 2) return;
+  // Allow firing during: steps 1-2 (learning), steps 8-22 (fishing phases — no menu required)
+  const fishingSteps = [1,2,8,10,12,14,16,17,18,19,20,21,22];
+  if(game.tutorial.active && !fishingSteps.includes(game.tutorial.step)) return;
   harpoon.status='out';
   harpoon.tipX=harpoon.x;
   harpoon.tipY = 170;
@@ -2315,21 +2317,56 @@ function updateEffects(dt){
   game.messages=game.messages.filter(m=>m.life>0);
 }
 
+// ── TUTORIAL STEPS ──────────────────────────────────────────────────────────
+// Each step: text, icon, action hint, highlight region (for dimming), condition
+// highlight: null = dim everything, or { type:'hud_right' | 'panel_right' | 'panel_shop' | 'panel_maps' | 'panel_quests' | 'panel_catches' | 'panel_rods' | 'panel_bait' }
 const tutorialSteps = [
-  { text:'Welcome, Captain! Move your mouse left and right to aim your harpoon.', icon:'🎯', action:'Move mouse' },
-  { text:'Ready to fire! Click or press SPACE to drop the harpoon into the water.', icon:'🖱️', action:'Click / Space' },
-  { text:'A fish is nearby! Drop the harpoon to catch it and earn coins.', icon:'🐟', action:'Catch a fish' },
-  { text:'Nice catch! Now open the MENU to access the Shop and buy upgrades.', icon:'☰', action:'Open MENU → Shop' },
-  { text:'The Shop lets you spend gems on upgrades. Gems come from rare fish!', icon:'💎', action:'Close Shop' },
-  { text:'Open the MENU again and visit the GEAR tab to buy better harpoons.', icon:'🔱', action:'Open MENU → Gear' },
-  { text:'Better harpoons unlock new maps and catch stronger fish faster!', icon:'⚡', action:'Close Gear' },
-  { text:'Open the MENU and check MAPS to travel to new fishing locations.', icon:'🗺', action:'Open MENU → Maps' },
-  { text:'Each map has unique fish and higher coin multipliers. Explore them all!', icon:'🌍', action:'Close Maps' },
-  { text:'Open the MENU and view your QUESTS — complete them for big rewards!', icon:'📋', action:'Open MENU → Quests' },
-  { text:'Quests award bonus coins. New quests unlock as you progress!', icon:'🏆', action:'Close Quests' },
-  { text:'Last stop — open MENU then CATCHES to see your fish collection.', icon:'📖', action:'Open MENU → Catches' },
-  { text:'Your collection tracks every fish and variant you\'ve caught. Fill it up!', icon:'✅', action:'Close Catches' },
-  { text:'Tutorial Complete! Good luck out there, Captain! 🎉', icon:'🎉', action:'' }
+  // 0: Move mouse
+  { text:'Welcome, Captain! Move your mouse left and right to aim your harpoon.', icon:'🎯', action:'Move your mouse left/right', highlight:null },
+  // 1: Fire harpoon
+  { text:'Ready to fire! Click or press SPACE to drop the harpoon into the water.', icon:'🖱️', action:'Click or press SPACE', highlight:null },
+  // 2: Catch a fish
+  { text:'Great! Aim at a fish and catch one to earn your first coins!', icon:'🐟', action:'Catch a fish', highlight:null },
+  // 3: Open menu → shop (highlight right panel/menu button)
+  { text:'Nice catch! Open the MENU and head to the Shop to buy an upgrade with your gem!', icon:'☰', action:'Open MENU → Shop', highlight:'hud_right' },
+  // 4: Buy any shop upgrade (must buy something to continue)
+  { text:'You have a free gem! Buy any upgrade you like — Harpoon Speed is a great start.', icon:'💎', action:'Buy an upgrade', highlight:'panel_shop' },
+  // 5: Visit quests tab (open menu → quests)
+  { text:'Nice upgrade! Now open the MENU and check out your QUESTS tab.', icon:'📋', action:'Open MENU → Quests', highlight:'hud_right' },
+  // 6: Visit settings/sound via menu
+  { text:'These are your quests — complete them for big coin rewards! Now check SETTINGS.', icon:'⚙', action:'Open MENU → Settings', highlight:'panel_quests' },
+  // 7: Close menu / go back to fishing
+  { text:'Settings let you adjust sound. Close the menu now and keep fishing!', icon:'🎣', action:'Close the menu', highlight:'panel_settings' },
+  // 8: Reach 150 coins — open shop → maps to sail to coral reef
+  { text:'Keep fishing! Once you have 150 coins, you can sail to the Coral Reef!', icon:'🪙', action:'Earn 150 coins total', highlight:null },
+  // 9: Must open maps and buy/travel to coral reef
+  { text:'You have 150 coins! Open MENU → Maps and sail to the Coral Reef!', icon:'🗺', action:'Open MENU → Maps → Coral Reef', highlight:'hud_right' },
+  // 10: Now on coral reef, earn to 400 coins for deep sea
+  { text:'Welcome to the Coral Reef! Keep fishing and earn 400 coins to unlock the Deep Sea.', icon:'🐠', action:'Earn 400 coins total', highlight:null },
+  // 11: Must go to deep sea
+  { text:'400 coins reached! Open MENU → Maps and sail to the Deep Sea!', icon:'🌊', action:'Open MENU → Maps → Deep Sea', highlight:'hud_right' },
+  // 12: On deep sea, earn to 1000 for volcano
+  { text:'The Deep Sea! Rare fish lurk here. Earn 1,000 coins to reach the Volcano Coast!', icon:'🔵', action:'Earn 1,000 coins total', highlight:null },
+  // 13: Must go to volcano coast
+  { text:'1,000 coins! Open MENU → Maps and sail to the Volcano Coast!', icon:'🌋', action:'Open MENU → Maps → Volcano Coast', highlight:'hud_right' },
+  // 14: On volcano, fish until can afford volcano bait (300 coins = 30% of 1000)
+  { text:'Volcano Coast! Fish here and earn enough to buy Volcano Coast Bait in the Bait shop!', icon:'🪱', action:'Earn coins for Volcano Coast Bait', highlight:null },
+  // 15: Must open menu → bait and buy volcano coast bait specifically
+  { text:'You can afford Volcano Coast Bait! Open MENU → Bait and buy the map bait!', icon:'🪱', action:'Open MENU → Bait → Buy Volcano Bait', highlight:'hud_right' },
+  // 16: Wait for bait to be purchased — then fish to 1200 coins
+  { text:'Bait active! Keep fishing — we\'ll check your Catches collection soon!', icon:'🎣', action:'Keep fishing for coins', highlight:null },
+  // 17: Show catches collection along the way
+  { text:'While fishing, check out your CATCHES collection! Open MENU → Catches.', icon:'📖', action:'Open MENU → Catches', highlight:'hud_right' },
+  // 18: Close collection
+  { text:'Your collection tracks every fish you catch. Close the menu and keep earning!', icon:'✅', action:'Keep fishing to 1,200 coins', highlight:'panel_catches' },
+  // 19: Buy steel harpoon in gear
+  { text:'Once you have 1,200 coins, open MENU → Gear and buy the Steel Harpoon!', icon:'⚡', action:'Open MENU → Gear → Steel Harpoon', highlight:'hud_right' },
+  // 20: Now go to frost world (ice costs 2200)
+  { text:'Steel Harpoon equipped! Now earn 2,200 coins and sail to the Frozen Abyss!', icon:'❄️', action:'Earn 2,200 coins → Frozen Abyss', highlight:null },
+  // 21: Must sail to ice map
+  { text:'2,200 coins! Open MENU → Maps and sail to the Frozen Abyss!', icon:'🧊', action:'Open MENU → Maps → Frozen Abyss', highlight:'hud_right' },
+  // 22: Tutorial complete at frost world
+  { text:'🎉 Tutorial Complete! You\'ve mastered the basics, Captain. Good luck out there!', icon:'🏆', action:'', highlight:null },
 ];
 
 function drawTutorial(){
@@ -2338,9 +2375,52 @@ function drawTutorial(){
   const step = tutorialSteps[game.tutorial.step];
   const isFinal = game.tutorial.step >= tutorialSteps.length - 1;
 
-  // Dim everything except tutorial bar
-  ctx.fillStyle='rgba(0,0,15,.52)';
-  ctx.fillRect(0,0,W,H);
+  // ── Smart dimming: only dim regions not relevant to current step ─────────
+  const hl = step.highlight;
+
+  // Right HUD panel region (MENU button area, top-right)
+  const hudRightX = W - 310, hudRightY = 14, hudRightW = 280, hudRightH = 118;
+  // Left HUD panel region
+  const hudLeftX = 14, hudLeftY = 14, hudLeftW = 290, hudLeftH = 165;
+  // Full panel area (when a sub-panel is open)
+  const panelX = 175, panelY = 95, panelW = 1160, panelH = 670;
+
+  ctx.save();
+
+  if(hl === 'hud_right'){
+    // Dim everything except the right HUD panel (MENU button)
+    ctx.fillStyle = 'rgba(0,0,15,.60)';
+    // top strip above right panel
+    ctx.fillRect(0, 0, W, hudRightY);
+    // left of right panel
+    ctx.fillRect(0, hudRightY, hudRightX, hudRightH);
+    // right of right panel (none needed)
+    // below right panel down to bottom (leave room for tutorial bar)
+    ctx.fillRect(0, hudRightY + hudRightH, W, H - (hudRightY + hudRightH) - 160);
+    // Dim left panel too
+    ctx.fillRect(hudLeftX - 4, hudLeftY - 4, hudLeftW + 8, hudLeftH + 8);
+  } else if(hl === 'panel_shop'){
+    // Panel is open on shop; dim the dark overlay but leave the panel bright
+    ctx.fillStyle = 'rgba(0,0,15,.52)';
+    // dim outside panel
+    ctx.fillRect(0, 0, panelX, H);
+    ctx.fillRect(panelX + panelW, 0, W - panelX - panelW, H);
+    ctx.fillRect(panelX, 0, panelW, panelY);
+    ctx.fillRect(panelX, panelY + panelH, panelW, H - panelY - panelH);
+  } else if(hl === 'panel_quests' || hl === 'panel_settings' || hl === 'panel_catches' || hl === 'panel_rods' || hl === 'panel_bait'){
+    // Same: keep panel area bright
+    ctx.fillStyle = 'rgba(0,0,15,.52)';
+    ctx.fillRect(0, 0, panelX, H);
+    ctx.fillRect(panelX + panelW, 0, W - panelX - panelW, H);
+    ctx.fillRect(panelX, 0, panelW, panelY);
+    ctx.fillRect(panelX, panelY + panelH, panelW, H - panelY - panelH);
+  } else {
+    // Default: dim everything
+    ctx.fillStyle = 'rgba(0,0,15,.52)';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  ctx.restore();
 
   // Tutorial bar at bottom — tall, clean card
   const barH=128, barY=H-barH-18, barX=18, barW=W-36;
@@ -2358,7 +2438,7 @@ function drawTutorial(){
 
   // Step text
   ctx.fillStyle='#fff';
-  ctx.font='bold 22px ui-monospace,monospace';
+  ctx.font='bold 21px ui-monospace,monospace';
   ctx.textAlign='left'; ctx.textBaseline='middle';
   ctx.fillText(step.text, barX+100, barY+38);
 
@@ -2369,10 +2449,25 @@ function drawTutorial(){
     ctx.fillText(`▶  ${step.action}`, barX+102, barY+74);
   }
 
+  // Dynamic coin progress for "earning" steps
+  const coinGoalByStep = { 8:150, 10:400, 12:1000, 14:300, 20:2200 };
+  const coinGoal = coinGoalByStep[game.tutorial.step];
+  if(coinGoal !== undefined){
+    const coinPct = Math.min(1, game.coins / coinGoal);
+    const cpW = Math.min(600, barW - 320);
+    const cpX = barX + barW - cpW - 18;
+    const cpY = barY + 44;
+    roundRect(cpX, cpY, cpW, 14, 7, 'rgba(255,255,255,.10)');
+    if(coinPct > 0){ roundRect(cpX, cpY, Math.floor(cpW * coinPct), 14, 7, '#ffdd59'); }
+    ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='13px ui-monospace,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(`${fmt(Math.floor(game.coins))} / ${fmt(coinGoal)} coins`, cpX + cpW/2, cpY + 26);
+  }
+
   // If final step, draw "Start Fishing!" button
   if(isFinal){
-    const bw=240,bh=48,bx=barX+barW-bw-18,by=barY+barH/2-bh/2;
-    addButton(bx,by,bw,bh,'Start Fishing!',()=>{ game.tutorial.active=false; },'#2ed573').draw('#2ed573');
+    const bw=260,bh=48,bx=barX+barW-bw-18,by=barY+barH/2-bh/2;
+    addButton(bx,by,bw,bh,'🎉 Start Fishing!',()=>{ game.tutorial.active=false; },'#2ed573').draw('#2ed573');
   }
 
   // Progress bar at bottom of bar
@@ -2392,60 +2487,115 @@ function updateTutorial(){
   if(!game.tutorial.active) return;
 
   const t = game.tutorial;
+  const s = t.step;
 
   // STEP 0: move mouse
-  if(t.step === 0){
+  if(s === 0){
     if(Math.abs(game.mouseX - W/2) > 120) t.step++;
   }
   // STEP 1: fire harpoon
-  else if(t.step === 1){
+  else if(s === 1){
     if(harpoon.status !== 'still') t.step++;
   }
   // STEP 2: catch a fish
-  else if(t.step === 2){
+  else if(s === 2){
     if(game.caught >= 1) t.step++;
   }
-  // STEP 3: open shop (via menu)
-  else if(t.step === 3){
+  // STEP 3: open shop (via menu → shop)
+  else if(s === 3){
     if(game.panel === 'shop') t.step++;
   }
-  // STEP 4: close shop (back to menu or closed)
-  else if(t.step === 4){
-    if(game.panel === null || game.panel === 'menu') t.step++;
+  // STEP 4: buy any shop upgrade (tracked by upgrade total increasing)
+  else if(s === 4){
+    const totalUpgrades = Object.values(game.upgrades).reduce((a,b)=>a+b,0);
+    if(t._upgradeSnapshot === undefined) t._upgradeSnapshot = totalUpgrades;
+    if(totalUpgrades > t._upgradeSnapshot) t.step++;
   }
-  // STEP 5: open gear/rods (via menu)
-  else if(t.step === 5){
-    if(game.panel === 'rods') t.step++;
-  }
-  // STEP 6: close gear
-  else if(t.step === 6){
-    if(game.panel === null || game.panel === 'menu') t.step++;
-  }
-  // STEP 7: open maps (via menu)
-  else if(t.step === 7){
-    if(game.panel === 'maps') t.step++;
-  }
-  // STEP 8: close maps
-  else if(t.step === 8){
-    if(game.panel === null || game.panel === 'menu') t.step++;
-  }
-  // STEP 9: open quests (via menu)
-  else if(t.step === 9){
+  // STEP 5: open quests tab
+  else if(s === 5){
+    if(game.panel === null || game.panel === 'menu') {
+      if(!t._waitingForMenu5) t._waitingForMenu5 = true;
+    }
     if(game.panel === 'quests') t.step++;
   }
-  // STEP 10: close quests
-  else if(t.step === 10){
-    if(game.panel === null || game.panel === 'menu') t.step++;
+  // STEP 6: from quests, open settings (sound panel)
+  else if(s === 6){
+    if(game.panel === 'sound') t.step++;
   }
-  // STEP 11: open collection (via menu)
-  else if(t.step === 11){
+  // STEP 7: close menu entirely
+  else if(s === 7){
+    if(game.panel === null) t.step++;
+  }
+  // STEP 8: wait until player has 150 coins (check map too — stay on bay)
+  else if(s === 8){
+    if(game.coins >= 150) t.step++;
+  }
+  // STEP 9: open maps panel and travel to Coral Reef
+  else if(s === 9){
+    if(game.map === 'reef') t.step++;
+    // Also progress if they open maps (guide them)
+  }
+  // STEP 10: earn 400 coins on coral reef (or any map)
+  else if(s === 10){
+    if(game.coins >= 400) t.step++;
+  }
+  // STEP 11: must sail to deep sea
+  else if(s === 11){
+    if(game.map === 'deep') t.step++;
+  }
+  // STEP 12: earn 1000 coins
+  else if(s === 12){
+    if(game.coins >= 1000) t.step++;
+  }
+  // STEP 13: must sail to volcano coast
+  else if(s === 13){
+    if(game.map === 'lava') t.step++;
+  }
+  // STEP 14: earn enough for volcano coast bait (300 coins = 30% of 1000)
+  else if(s === 14){
+    const volcBaitCost = 300; // 30% of lava cost 1000
+    if(game.coins >= volcBaitCost) t.step++;
+  }
+  // STEP 15: must open bait panel and buy the map bait (Volcano Coast Bait)
+  else if(s === 15){
+    if(t._baitSnapshot === undefined) t._baitSnapshot = false;
+    if(game.mapBaitActive && !t._baitSnapshot){
+      t._baitSnapshot = true;
+      t.step++;
+    }
+  }
+  // STEP 16: earn 1200 coins
+  else if(s === 16){
+    if(!t._showedCatchesHint) t._showedCatchesHint = false;
+    if(game.coins >= 700 && !t._showedCatchesHint){
+      t._showedCatchesHint = true;
+      t.step++; // Go to step 17 (show catches hint)
+    }
+  }
+  // STEP 17: open catches collection
+  else if(s === 17){
     if(game.panel === 'collection') t.step++;
   }
-  // STEP 12: close collection
-  else if(t.step === 12){
+  // STEP 18: close collection, keep earning to 1200
+  else if(s === 18){
     if(game.panel === null || game.panel === 'menu') t.step++;
   }
-  // STEP 13 (final): player must click "Start Fishing!" button — handled in drawTutorial button fn
+  // STEP 19 (was part of 16): earn 1200 and buy steel harpoon in gear
+  else if(s === 19){
+    if(game.coins >= 1200) {
+      if(!t._waitingForRod19) t._waitingForRod19 = true;
+    }
+    if(game.rod === 'steel' || (game.unlockedRods && game.unlockedRods['steel'])) t.step++;
+  }
+  // STEP 20: earn 2200 coins (ice map cost)
+  else if(s === 20){
+    if(game.coins >= 2200) t.step++;
+  }
+  // STEP 21: sail to frozen abyss
+  else if(s === 21){
+    if(game.map === 'ice') t.step++;
+  }
+  // STEP 22: final — stays until player clicks button
 }
 
 function spawnFish(){ game.fish=[]; const count=15+currentMap().fishBonus; for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
@@ -3761,7 +3911,7 @@ function drawHUD() {
 
   // MENU button (single big button)
   const pulse = 0.7 + Math.sin(Date.now() * 0.01) * 0.3;
-  const anyTutorialHighlight = game.tutorial.active && [3,5,7,9,11].includes(game.tutorial.step);
+  const anyTutorialHighlight = game.tutorial.active && [3,5,6,9,11,13,15,17,19,21].includes(game.tutorial.step);
   const menuBtnX = rightX + 12, menuBtnY = 76, menuBtnW = panelW - 24, menuBtnH = 44;
   const menuHov = game.mouseX >= menuBtnX && game.mouseX <= menuBtnX + menuBtnW && game.mouseY >= menuBtnY && game.mouseY <= menuBtnY + menuBtnH;
   const menuColor = anyTutorialHighlight ? `rgba(255,241,106,${pulse})` : (menuHov ? '#2daaf5' : '#0984e3');
@@ -3836,13 +3986,13 @@ function drawMenuPanel(){
 
   const btns = [
     { label:'Shop',       icon:'🛒', sub:'Buy upgrades & bait',  color:'#0fbcf9', dark:'#0984e3', panel:'shop',       tutStep:3  },
-    { label:'Maps',       icon:'🗺',  sub:'Travel to new waters', color:'#00cec9', dark:'#00a8a4', panel:'maps',       tutStep:7  },
-    { label:'Quests',     icon:'📋', sub:'Daily fishing goals',   color:'#55efc4', dark:'#00b894', panel:'quests',     tutStep:9  },
-    { label:'Bait',       icon:'🪱', sub:'Boost your catches',    color:'#a29bfe', dark:'#6c5ce7', panel:'bait',       tutStep:-1 },
-    { label:'Gear',       icon:'🔱', sub:'Upgrade your harpoon', color:'#fdcb6e', dark:'#e17055', panel:'rods',       tutStep:5  },
-    { label:'Catches',    icon:'🐟', sub:'Your fish collection',  color:'#fd79a8', dark:'#e84393', panel:'collection', tutStep:11 },
+    { label:'Maps',       icon:'🗺',  sub:'Travel to new waters', color:'#00cec9', dark:'#00a8a4', panel:'maps',       tutStep:[9,11,13,21]  },
+    { label:'Quests',     icon:'📋', sub:'Daily fishing goals',   color:'#55efc4', dark:'#00b894', panel:'quests',     tutStep:5  },
+    { label:'Bait',       icon:'🪱', sub:'Boost your catches',    color:'#a29bfe', dark:'#6c5ce7', panel:'bait',       tutStep:15 },
+    { label:'Gear',       icon:'🔱', sub:'Upgrade your harpoon', color:'#fdcb6e', dark:'#e17055', panel:'rods',       tutStep:19  },
+    { label:'Catches',    icon:'🐟', sub:'Your fish collection',  color:'#fd79a8', dark:'#e84393', panel:'collection', tutStep:17 },
     { label:'Statistics', icon:'📊', sub:'Your fishing records',  color:'#74b9ff', dark:'#0984e3', panel:'stats',      tutStep:-1 },
-    { label:'Settings',   icon:'⚙',  sub:'Sound & preferences',  color: SFX.settings.mute ? '#ff6b6b' : '#b2bec3', dark: SFX.settings.mute ? '#ff4757' : '#636e72', panel:'sound', tutStep:-1 },
+    { label:'Settings',   icon:'⚙',  sub:'Sound & preferences',  color: SFX.settings.mute ? '#ff6b6b' : '#b2bec3', dark: SFX.settings.mute ? '#ff4757' : '#636e72', panel:'sound', tutStep:6 },
   ];
 
   const panelL=175, panelT=165, panelR=1335, panelB=755;
@@ -3860,7 +4010,7 @@ function drawMenuPanel(){
     const bx=startX+col*(btnW+gapX);
     const by=startY+row*(btnH+gapY);
 
-    const highlight = game.tutorial.active && game.tutorial.step===b.tutStep;
+    const highlight = game.tutorial.active && (Array.isArray(b.tutStep) ? b.tutStep.includes(game.tutorial.step) : game.tutorial.step===b.tutStep);
     const baseColor = highlight ? `rgba(255,241,106,${pulse})` : b.color;
     const darkColor = highlight ? `rgba(200,180,0,${pulse})` : b.dark;
 
@@ -4049,6 +4199,15 @@ function drawMapsPanel(){
       40,
       label,
       ()=>{
+        // Tutorial: enforce specific map destination
+        if(game.tutorial.active){
+          const ts = game.tutorial.step;
+          const forcedMap = ts === 9 ? 'reef' : ts === 11 ? 'deep' : ts === 13 ? 'lava' : ts === 21 ? 'ice' : null;
+          if(forcedMap && m.id !== forcedMap && [9,11,13,21].includes(ts)){
+            msg(`You need to go to ${maps.find(x=>x.id===forcedMap)?.name||forcedMap}!`, W/2, 200, '#ff7675');
+            return;
+          }
+        }
         if(!canEnter && unlocked){
           const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
           msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
@@ -4290,6 +4449,12 @@ function drawBaitPanel(){
 
     addButton(btnX3, btnY2, btnW3, btnH3, '', () => {
       if(active) return;
+      // Tutorial step 15: only allow buying map bait (not mutation bait)
+      if(game.tutorial.active && game.tutorial.step === 15 && b.key === 'mutationBaitActive'){
+        msg('Buy the Volcano Coast Bait first!', W/2, 200, '#ff7675');
+        SFX.error();
+        return;
+      }
       buy(b.cost, () => {
         game[b.key] = true;
         if(!game._baitTimers) game._baitTimers = {};
@@ -4679,9 +4844,11 @@ canvas.addEventListener('wheel', e=>{
 window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape'){ if(game.panel){ SFX.panelClose(); if(game.panel!=='menu'&&game.panelFrom==='menu'){ game.panel='menu'; game.panelFrom=null; game.panelAnim={t:0,open:false}; } else { game.panel=null; game.panelFrom=null; game.panelAnim={t:0,open:false}; } } } });
 
 load(); // Enable tutorial ONLY for brand new players
-if(game.caught === 0){
+if(game.caught === 0 && !game.tutorial.everStarted){
   game.tutorial.active = true;
   game.tutorial.step = 0;
+  game.tutorial.everStarted = true;
+  game.gems = 1; // Give 1 starting gem
 }
 
 // Start background music on first user interaction (browser autoplay policy)
