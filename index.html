@@ -362,47 +362,49 @@ const SFX = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // BACKGROUND MUSIC — rolling lookahead scheduler
-  // Schedules only ~2 beats ahead at a time so the audio thread is never
-  // flooded. Instruments are xylophone-style (fast decay sine) + light bass
-  // pluck + soft shaker — airy and lighthearted, never heavy.
-  // Total sequence: 256 bars @ 96 BPM ≈ 10 min 40 s before looping.
+  // BACKGROUND MUSIC — Layered evolving arrangement, 4-loop cycle (~5:07)
+  //
+  // Structure: 4 × 32-bar loops at 100 BPM = 1024 half-beats = 307.2 s
+  //
+  //   Loop 0  (hb    0– 255,   0–76.8s)  — melody alone, very sparse
+  //   Loop 1  (hb  256– 511,  77–154s)   — bass + chords fade in
+  //   Loop 2  (hb  512– 767, 154–230s)   — woodblock + flute + strings enter
+  //   Loop 3  (hb  768–1023, 230–307s)   — full arrangement; final 4 bars wind down:
+  //     bars 28–30 (hb 992–1015): layers peel off one by one
+  //     bar  31    (hb 1016):     final marimba cadence  G5→D5→G4
+  //                               then big resonant G-major chord blooms & fades (~6s)
+  //                               all other layers silent
+  //   hb 1024 → cycle resets cleanly to loop 0
+  //
   // ══════════════════════════════════════════════════════════════════════════
   let _musicStarted = false;
   let _musicGain    = null;
-  let _musicTimer   = null;   // the single rolling setTimeout handle
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // BACKGROUND MUSIC — Stardew Valley-inspired
-  // Instruments: marimba melody + banjo pluck bass + accordion chord pad +
-  //              woodblock percussion. Laidback major key, slightly behind
-  //              the beat for that cozy farm/fishing feel.
-  // 32 bars @ 100 BPM ≈ 76.8s loop.
-  // ══════════════════════════════════════════════════════════════════════════
+  let _musicTimer   = null;
+  let _cycleStartHB = 0; // absolute _schedHB value at which current cycle began
 
   // Build frequency table from MIDI note numbers (A4=440 Hz, MIDI 69)
   function _mf(midi){ return 440 * Math.pow(2, (midi - 69) / 12); }
   const _N = {
+    C2:_mf(36), G2:_mf(43), B2:_mf(47),
     C3:_mf(48), D3:_mf(50), E3:_mf(52), F3:_mf(53), G3:_mf(55), A3:_mf(57), B3:_mf(59),
     C4:_mf(60), D4:_mf(62), E4:_mf(64), F4:_mf(65), G4:_mf(67), A4:_mf(69), B4:_mf(71),
     C5:_mf(72), D5:_mf(74), E5:_mf(76), F5:_mf(77), G5:_mf(79), A5:_mf(81), B5:_mf(83),
+    C6:_mf(84), D6:_mf(86), E6:_mf(88),
   };
 
   // ── MARIMBA note: sine + 4th harmonic, fast wood-like decay ──────────────
   function _marimba(ac, dest, freq, startT, vol, dur){
     try{
-      // Fundamental
       const o1 = ac.createOscillator(); const g1 = ac.createGain();
       o1.type = 'sine'; o1.frequency.value = freq;
       g1.gain.setValueAtTime(vol, startT);
       g1.gain.setTargetAtTime(0, startT + 0.003, dur * 0.13);
       o1.connect(g1); g1.connect(dest);
       o1.start(startT); o1.stop(startT + dur + 0.3);
-      // 4th harmonic (marimba characteristic)
       const o2 = ac.createOscillator(); const g2 = ac.createGain();
       o2.type = 'sine'; o2.frequency.value = freq * 4;
       g2.gain.setValueAtTime(vol * 0.15, startT);
-      g2.gain.setTargetAtTime(0, startT + 0.001, dur * 0.04); // decays faster
+      g2.gain.setTargetAtTime(0, startT + 0.001, dur * 0.04);
       o2.connect(g2); g2.connect(dest);
       o2.start(startT); o2.stop(startT + dur * 0.2 + 0.05);
     }catch(e){}
@@ -421,13 +423,13 @@ const SFX = (() => {
     }catch(e){}
   }
 
-  // ── ACCORDION chord pad: two detuned sines + slow attack ─────────────────
+  // ── ACCORDION chord pad: triangle detuned pair, slow attack ──────────────
   function _chord(ac, dest, freqs, startT, vol, dur){
     try{
       freqs.forEach((f, i) => {
         const o = ac.createOscillator(); const g = ac.createGain();
         o.type = 'triangle';
-        o.frequency.value = f * (1 + (i % 2 === 0 ? 0.002 : -0.002)); // slight detune
+        o.frequency.value = f * (1 + (i % 2 === 0 ? 0.002 : -0.002));
         g.gain.setValueAtTime(0, startT);
         g.gain.linearRampToValueAtTime(vol * 0.055, startT + 0.06);
         g.gain.setTargetAtTime(0, startT + dur * 0.6, dur * 0.25);
@@ -451,95 +453,219 @@ const SFX = (() => {
     }catch(e){}
   }
 
+  // ── FLUTE / COUNTER-MELODY: pure sine, high register, breathy vibrato ────
+  function _flute(ac, dest, freq, startT, vol, dur){
+    try{
+      const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      const lfo = ac.createOscillator(); const lfoG = ac.createGain();
+      lfo.frequency.value = 5.5; lfoG.gain.value = freq * 0.012;
+      lfo.connect(lfoG); lfoG.connect(o.frequency);
+      lfo.start(startT); lfo.stop(startT + dur + 0.2);
+      const nLen = Math.ceil(ac.sampleRate * (dur + 0.1));
+      const nBuf = ac.createBuffer(1, nLen, ac.sampleRate);
+      const nd = nBuf.getChannelData(0);
+      for(let i=0;i<nd.length;i++) nd[i]=(Math.random()*2-1)*0.035;
+      const nSrc = ac.createBufferSource(); nSrc.buffer = nBuf;
+      const hp = ac.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=freq*1.4;
+      const ng = ac.createGain(); ng.gain.setValueAtTime(vol*0.18, startT);
+      nSrc.connect(hp); hp.connect(ng); ng.connect(dest);
+      nSrc.start(startT);
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(vol, startT + 0.05);
+      g.gain.setTargetAtTime(0, startT + dur * 0.75, dur * 0.18);
+      o.connect(g); g.connect(dest);
+      o.start(startT); o.stop(startT + dur + 0.25);
+    }catch(e){}
+  }
+
+  // ── STRING PAD: warm saw + LP + slow attack/release ───────────────────────
+  function _strings(ac, dest, freqs, startT, vol, dur){
+    try{
+      freqs.forEach((f, i) => {
+        const o = ac.createOscillator(); const g = ac.createGain();
+        o.type = 'sawtooth';
+        o.frequency.value = f * (1 + (i === 0 ? 0.003 : i === 1 ? -0.003 : 0.006));
+        const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = f * 2.5;
+        g.gain.setValueAtTime(0, startT);
+        g.gain.linearRampToValueAtTime(vol * 0.040, startT + 0.25);
+        g.gain.setTargetAtTime(0, startT + dur * 0.72, dur * 0.22);
+        o.connect(lp); lp.connect(g); g.connect(dest);
+        o.start(startT); o.stop(startT + dur + 0.5);
+      });
+    }catch(e){}
+  }
+
+  // ── SUB-BASS PULSE: deep sine thump on beat 1 ─────────────────────────────
+  function _subBass(ac, dest, freq, startT, vol){
+    try{
+      const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = 'sine'; o.frequency.value = freq * 0.5;
+      g.gain.setValueAtTime(vol * 0.65, startT);
+      g.gain.exponentialRampToValueAtTime(0.0001, startT + 0.55);
+      o.connect(g); g.connect(dest);
+      o.start(startT); o.stop(startT + 0.6);
+    }catch(e){}
+  }
+
+  // ── SHIMMER: high tinkly sine ping for swell peak ─────────────────────────
+  function _shimmer(ac, dest, freq, startT, vol){
+    try{
+      const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(vol * 0.09, startT);
+      g.gain.exponentialRampToValueAtTime(0.0001, startT + 0.55);
+      o.connect(g); g.connect(dest);
+      o.start(startT); o.stop(startT + 0.6);
+    }catch(e){}
+  }
+
+  // ── FINAL CHORD: big resonant G-major bloom that fades over ~6 seconds ────
+  // Called once at the downbeat of bar 31 in loop 3. All voices ring freely.
+  function _finalChord(ac, dest, startT, vol){
+    try{
+      // Voices: G2, G3, B3, D4, G4, B4, D5, G5 — full G major stack
+      const voices = [
+        { f: _N.G2,  t:'sine',     v:0.55, att:0.12, decay:5.5 },
+        { f: _N.G3,  t:'triangle', v:0.45, att:0.08, decay:5.0 },
+        { f: _N.B3,  t:'triangle', v:0.38, att:0.10, decay:4.8 },
+        { f: _N.D4,  t:'triangle', v:0.35, att:0.09, decay:4.5 },
+        { f: _N.G4,  t:'sine',     v:0.30, att:0.07, decay:4.2 },
+        { f: _N.B4,  t:'sine',     v:0.22, att:0.06, decay:3.8 },
+        { f: _N.D5,  t:'sine',     v:0.16, att:0.05, decay:3.2 },
+        { f: _N.G5,  t:'sine',     v:0.10, att:0.04, decay:2.6 },
+      ];
+      voices.forEach(v => {
+        const o = ac.createOscillator(); const g = ac.createGain();
+        o.type = v.t;
+        o.frequency.value = v.f;
+        // Slight detuning for warmth
+        o.detune.value = (Math.random() - 0.5) * 6;
+        g.gain.setValueAtTime(0, startT);
+        g.gain.linearRampToValueAtTime(vol * v.v, startT + v.att);
+        // Long exponential tail — resonance
+        g.gain.exponentialRampToValueAtTime(0.0001, startT + v.decay);
+        o.connect(g); g.connect(dest);
+        o.start(startT); o.stop(startT + v.decay + 0.1);
+      });
+      // High shimmer sparkle at attack to make it feel like a struck chord
+      [_N.G5, _N.D5, _N.B4, _N.G4].forEach((f, i) => {
+        const o = ac.createOscillator(); const g2 = ac.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g2.gain.setValueAtTime(vol * 0.09, startT + i * 0.03);
+        g2.gain.exponentialRampToValueAtTime(0.0001, startT + i * 0.03 + 1.2);
+        o.connect(g2); g2.connect(dest);
+        o.start(startT + i * 0.03); o.stop(startT + i * 0.03 + 1.3);
+      });
+    }catch(e){}
+  }
+
   // ── MUSIC DATA ─────────────────────────────────────────────────────────────
-  // 100 BPM — beat=0.6s, half-beat=0.3s, bar=2.4s, 32 bars=76.8s
   const BPM  = 100;
   const BEAT = 60 / BPM;        // 0.6 s
   const HB   = BEAT / 2;        // 0.3 s
-  const BAR  = BEAT * 4;
+  const BAR  = BEAT * 4;        // 2.4 s
   const TOTAL_BARS = 32;
-  const TOTAL_HB   = TOTAL_BARS * 8; // 256 half-beats
+  const TOTAL_HB   = TOTAL_BARS * 8;  // 256 half-beats per loop
+  const CYCLE_HB   = TOTAL_HB * 4;   // 1024 half-beats = 4 loops = 307.2 s
 
-  // Chord progressions per bar (I-V-vi-IV in G major — warm, cozy)
-  // G=G3, D=D3, Em: E3, C=C3
+  // Within a cycle, which half-beat is each structural boundary?
+  // loop N starts at N * TOTAL_HB
+  // bar B of loop N  = N*TOTAL_HB + B*8
+  const OUTRO_START_HB = 3 * TOTAL_HB + 28 * 8; // hb 992 — bar 28 of loop 3
+  const FINAL_BAR_HB   = 3 * TOTAL_HB + 31 * 8; // hb 1016 — bar 31 of loop 3
+
   const _CHORD_PROG = [
-    // bars 0-3
     [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]],
-    // bars 4-7
     [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.C3,_N.G3,_N.E4]], [[_N.G3,_N.B3,_N.D4]],
-    // bars 8-11
     [[_N.G3,_N.B3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]], [[_N.D3,_N.A3,_N.D4]],
-    // bars 12-15
     [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]],
-    // bars 16-19 (variation)
     [[_N.C3,_N.G3,_N.E4]], [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.E3,_N.G3,_N.B3]],
-    // bars 20-23
     [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]],
-    // bars 24-27
     [[_N.G3,_N.B3,_N.D4]], [[_N.E3,_N.G3,_N.B3]], [[_N.C3,_N.G3,_N.E4]], [[_N.D3,_N.A3,_N.D4]],
-    // bars 28-31 (wrap)
     [[_N.G3,_N.B3,_N.D4]], [[_N.D3,_N.A3,_N.D4]], [[_N.C3,_N.G3,_N.E4]], [[_N.G3,_N.B3,_N.D4]],
   ];
 
-  // Bass roots per bar
-  const _BASS_ROOT = [
-    _N.G3,_N.D3,_N.E3,_N.C3,  // 0-3
-    _N.G3,_N.D3,_N.C3,_N.G3,  // 4-7
-    _N.G3,_N.E3,_N.C3,_N.D3,  // 8-11
-    _N.G3,_N.D3,_N.E3,_N.C3,  // 12-15
-    _N.C3,_N.G3,_N.D3,_N.E3,  // 16-19
-    _N.G3,_N.D3,_N.E3,_N.C3,  // 20-23
-    _N.G3,_N.E3,_N.C3,_N.D3,  // 24-27
-    _N.G3,_N.D3,_N.C3,_N.G3,  // 28-31
+  const _STRING_PROG = [
+    [_N.G3,_N.D4,_N.G4], [_N.D3,_N.A3,_N.D4], [_N.E3,_N.B3,_N.E4], [_N.C3,_N.G3,_N.C4],
+    [_N.G3,_N.D4,_N.G4], [_N.D3,_N.A3,_N.D4], [_N.C3,_N.G3,_N.C4], [_N.G3,_N.D4,_N.G4],
+    [_N.G3,_N.D4,_N.G4], [_N.E3,_N.B3,_N.E4], [_N.C3,_N.G3,_N.C4], [_N.D3,_N.A3,_N.D4],
+    [_N.G3,_N.D4,_N.G4], [_N.D3,_N.A3,_N.D4], [_N.E3,_N.B3,_N.E4], [_N.C3,_N.G3,_N.C4],
+    [_N.C3,_N.G3,_N.C4], [_N.G3,_N.D4,_N.G4], [_N.D3,_N.A3,_N.D4], [_N.E3,_N.B3,_N.E4],
+    [_N.G3,_N.D4,_N.G4], [_N.D3,_N.A3,_N.D4], [_N.E3,_N.B3,_N.E4], [_N.C3,_N.G3,_N.C4],
+    [_N.G3,_N.D4,_N.G4], [_N.E3,_N.B3,_N.E4], [_N.C3,_N.G3,_N.C4], [_N.D3,_N.A3,_N.D4],
+    [_N.G3,_N.D4,_N.G4], [_N.D3,_N.A3,_N.D4], [_N.C3,_N.G3,_N.C4], [_N.G3,_N.D4,_N.G4],
   ];
 
-  // Melody in G major (G4-G5 range) — marimba, laidback slightly-behind-beat feel
-  // hb = half-beat index (0-255), freq = note
+  const _BASS_ROOT = [
+    _N.G3,_N.D3,_N.E3,_N.C3,
+    _N.G3,_N.D3,_N.C3,_N.G3,
+    _N.G3,_N.E3,_N.C3,_N.D3,
+    _N.G3,_N.D3,_N.E3,_N.C3,
+    _N.C3,_N.G3,_N.D3,_N.E3,
+    _N.G3,_N.D3,_N.E3,_N.C3,
+    _N.G3,_N.E3,_N.C3,_N.D3,
+    _N.G3,_N.D3,_N.C3,_N.G3,
+  ];
+
   const _MEL = [
-    // ── PHRASE A (bars 0-3): cheerful opening — G major pentatonic skip ──
     [1,_N.D5],[3,_N.G5],[5,_N.A5],[6,_N.G5],[9,_N.E5],[11,_N.D5],
     [13,_N.B4],[15,_N.G4],
     [17,_N.A4],[19,_N.B4],[21,_N.D5],[23,_N.G5],
     [25,_N.A5],[27,_N.G5],[29,_N.E5],[31,_N.D5],
-    // ── PHRASE B (bars 4-7): bouncy mid section ──
     [33,_N.G5],[35,_N.E5],[37,_N.D5],[38,_N.E5],
     [41,_N.G5],[43,_N.A5],[45,_N.G5],[47,_N.E5],
     [49,_N.D5],[51,_N.B4],[53,_N.D5],[55,_N.G5],
     [57,_N.A5],[59,_N.G5],[61,_N.E5],[63,_N.D5],
-    // ── PHRASE C (bars 8-11): gentle descend ──
     [65,_N.B5],[67,_N.A5],[69,_N.G5],[71,_N.E5],
     [73,_N.D5],[75,_N.B4],[77,_N.D5],[79,_N.G5],
     [81,_N.A5],[83,_N.G5],[85,_N.E5],[87,_N.D5],
     [89,_N.B4],[91,_N.G4],[93,_N.A4],[95,_N.B4],
-    // ── PHRASE D (bars 12-15): call & answer ──
     [97,_N.D5],[99,_N.G5],[101,_N.A5],[103,_N.G5],
     [105,_N.E5],[107,_N.D5],[109,_N.B4],[111,_N.G4],
     [113,_N.B4],[115,_N.D5],[117,_N.G5],[119,_N.A5],
     [121,_N.G5],[123,_N.E5],[125,_N.D5],[127,_N.G5],
-    // ── PHRASE E (bars 16-19): higher energy climb ──
     [129,_N.A5],[131,_N.B5],[133,_N.A5],[135,_N.G5],
     [137,_N.E5],[139,_N.D5],[141,_N.G5],[143,_N.A5],
     [145,_N.B5],[147,_N.A5],[149,_N.G5],[151,_N.E5],
     [153,_N.D5],[155,_N.B4],[157,_N.D5],[159,_N.G5],
-    // ── PHRASE F (bars 20-23): playful trill-like ──
     [161,_N.G5],[162,_N.A5],[163,_N.G5],[165,_N.E5],[167,_N.D5],
     [169,_N.G5],[171,_N.A5],[173,_N.B5],[175,_N.A5],
     [177,_N.G5],[179,_N.E5],[181,_N.D5],[183,_N.B4],
     [185,_N.D5],[187,_N.G5],[189,_N.A5],[191,_N.G5],
-    // ── PHRASE G (bars 24-27): rolling descend ──
     [193,_N.B5],[195,_N.A5],[197,_N.G5],[199,_N.E5],
     [201,_N.D5],[203,_N.G5],[205,_N.A5],[207,_N.G5],
     [209,_N.E5],[211,_N.D5],[213,_N.B4],[215,_N.D5],
     [217,_N.G5],[219,_N.E5],[221,_N.D5],[223,_N.B4],
-    // ── PHRASE H (bars 28-31): warm cheerful close ──
     [225,_N.G4],[227,_N.B4],[229,_N.D5],[231,_N.G5],
     [233,_N.A5],[235,_N.G5],[237,_N.E5],[239,_N.D5],
     [241,_N.B4],[243,_N.D5],[245,_N.G5],[247,_N.A5],
     [249,_N.G5],[251,_N.E5],[253,_N.D5],[255,_N.G5],
   ];
-
   const _melMap = {};
   for(const [hb, f] of _MEL){ (_melMap[hb] || (_melMap[hb]=[])).push(f); }
+
+  // Counter-melody (flute) — sparser arpeggios answering the main melody
+  const _CTR_MEL = [
+    [4,_N.B5],[8,_N.D6],[12,_N.C6],[16,_N.B5],
+    [20,_N.A5],[24,_N.G5],[28,_N.A5],[32,_N.B5],
+    [36,_N.D6],[40,_N.E6],[44,_N.D6],[48,_N.B5],
+    [52,_N.A5],[56,_N.G5],[60,_N.A5],[64,_N.D6],
+    [68,_N.E6],[72,_N.D6],[76,_N.B5],[80,_N.G5],
+    [84,_N.A5],[88,_N.B5],[92,_N.D6],[96,_N.E6],
+    [100,_N.D6],[104,_N.B5],[108,_N.A5],[112,_N.G5],
+    [116,_N.A5],[120,_N.B5],[124,_N.D6],[128,_N.G5],
+    [132,_N.A5],[136,_N.B5],[140,_N.D6],[144,_N.E6],
+    [148,_N.D6],[152,_N.B5],[156,_N.A5],[160,_N.G5],
+    [164,_N.B5],[168,_N.D6],[172,_N.E6],[176,_N.D6],
+    [180,_N.B5],[184,_N.A5],[188,_N.G5],[192,_N.A5],
+    [196,_N.B5],[200,_N.D6],[204,_N.E6],[208,_N.D6],
+    [212,_N.B5],[216,_N.G5],[220,_N.A5],[224,_N.B5],
+    [228,_N.D6],[232,_N.E6],[236,_N.D6],[240,_N.B5],
+    [244,_N.A5],[248,_N.G5],[252,_N.B5],[256,_N.D6],
+  ];
+  const _ctrMap = {};
+  for(const [hb, f] of _CTR_MEL){ (_ctrMap[hb % TOTAL_HB] || (_ctrMap[hb % TOTAL_HB]=[])).push(f); }
 
   // ── rolling scheduler ─────────────────────────────────────────────────────
   let _schedHB   = 0;
@@ -547,39 +673,130 @@ const SFX = (() => {
   const LOOKAHEAD = BEAT * 3;
   const INTERVAL  = BEAT * 1.5;
 
-  function _scheduleHB(ac, dest, hbIdx, t){
-    const bar      = Math.floor(hbIdx / 8);
-    const hbInBar  = hbIdx % 8;
-    const vol      = settings.masterVolume * 0.13;
+  // Per-cycle half-beat position (0 to CYCLE_HB-1)
+  function _cycleHB(absHB){ return absHB - _cycleStartHB; }
 
-    // ── Marimba melody ──
-    const mfreqs = _melMap[hbIdx % TOTAL_HB];
-    if(mfreqs){
-      for(const f of mfreqs) _marimba(ac, dest, f, t, vol, 0.38);
+  function _scheduleHB(ac, dest, absHB, t){
+    const chb      = _cycleHB(absHB);           // position within cycle (0–1023)
+    const loopIdx  = Math.floor(chb / TOTAL_HB); // which loop (0–3)
+    const hbInLoop = chb % TOTAL_HB;             // position within the 32-bar loop
+    const bar      = Math.floor(hbInLoop / 8);   // bar within loop (0–31)
+    const hbInBar  = hbInLoop % 8;
+    const baseVol  = settings.masterVolume * 0.13;
+
+    // ── Is this the final bar of the cycle? (bar 31 of loop 3) ──
+    const isFinalBar = (chb >= FINAL_BAR_HB);
+
+    // ── Is this the outro wind-down? (bars 28–31 of loop 3) ──
+    const isOutro = (chb >= OUTRO_START_HB);
+
+    // Outro fade: how far into the 4-bar outro are we? (0→1 over bars 28–31)
+    const outroFade = isOutro
+      ? Math.max(0, Math.min(1, (chb - OUTRO_START_HB) / (FINAL_BAR_HB - OUTRO_START_HB + 8)))
+      : 0;
+
+    // ── Layer presence per loop ─────────────────────────────────────────────
+    // ramp(x, s, e): x goes 0→1 as chb goes from s*TOTAL_HB to e*TOTAL_HB
+    const loopT = chb / TOTAL_HB; // 0–4 continuous
+    const ramp = (v, s, e) => Math.max(0, Math.min(1, (v - s) / Math.max(0.01, e - s)));
+
+    // During outro, layers fade out progressively (outroFade 0→1 = full→silent)
+    const outroDrop = isOutro ? (1 - outroFade) : 1;
+
+    const lMelody  = ramp(loopT, 0.0, 0.25);                        // loop 0 fade-in
+    const lBass    = ramp(loopT, 0.5, 1.0)  * outroDrop;            // drops at bar 28
+    const lChord   = ramp(loopT, 1.0, 1.5)  * (isOutro ? Math.max(0, 1 - outroFade * 2) : 1); // drops early
+    const lWood    = ramp(loopT, 1.5, 2.0)  * (isOutro ? Math.max(0, 1 - outroFade * 2.5) : 1);
+    const lCounter = ramp(loopT, 2.0, 2.5)  * (isOutro ? Math.max(0, 1 - outroFade * 3) : 1);
+    const lStrings = ramp(loopT, 2.5, 3.0)  * outroDrop;
+    const lSub     = ramp(loopT, 3.0, 3.5)  * (isOutro ? Math.max(0, 1 - outroFade * 4) : 1);
+    // Swell shimmer peaks at loop 3.5–3.9, gone before final bar
+    const lSwell   = ramp(loopT, 3.4, 3.7) * (1 - ramp(loopT, 3.7, 3.88));
+
+    // ── FINAL BAR: suppress everything except the closing cadence ──
+    if(isFinalBar){
+      // Only fire the final closing cadence notes and the big chord — no rhythm, no bass
+      // Closing cadence: a short marimba run descending to home G, played across bar 31
+      //   hbInBar 0: D5 (penultimate)
+      //   hbInBar 2: B4
+      //   hbInBar 4: G5 (final arrival — the "last note")
+      // Then the big chord fires right after hbInBar 4
+      const cadVol = baseVol * 1.15;
+      if(hbInBar === 0){ _marimba(ac, dest, _N.D5,  t, cadVol, 0.5); }
+      if(hbInBar === 2){ _marimba(ac, dest, _N.B4,  t, cadVol, 0.5); }
+      if(hbInBar === 4){
+        _marimba(ac, dest, _N.G5, t,         cadVol * 1.2, 0.6);
+        _marimba(ac, dest, _N.G4, t + HB,    cadVol * 0.8, 0.5); // echo an octave down
+        _marimba(ac, dest, _N.G3, t + HB*2,  cadVol * 0.6, 0.5); // settle to root
+        // Big resonant final chord fires a half-beat after the top note
+        _finalChord(ac, dest, t + HB, baseVol * 1.3);
+      }
+      // hbInBar 5–7: silence — let the chord ring
+      return;
     }
 
-    // ── Banjo bass pluck on beats 1 & 3 (hbInBar 0 & 4), lighter on 2 & 4 ──
-    if(hbInBar === 0 || hbInBar === 4){
-      const root = _BASS_ROOT[bar % _BASS_ROOT.length];
-      _banjo(ac, dest, root, t, vol * 1.1);
-      // Fifth on beat 3 for a little walk
-      if(hbInBar === 4) _banjo(ac, dest, root * 1.5, t + HB * 0.5, vol * 0.55);
-    }
-    if(hbInBar === 2 || hbInBar === 6){
-      const root = _BASS_ROOT[bar % _BASS_ROOT.length];
-      _banjo(ac, dest, root, t, vol * 0.55);
+    // ── Layer 0: Marimba melody ──
+    if(lMelody > 0){
+      const melVol = baseVol * lMelody * (1 + lSwell * 0.55);
+      const mfreqs = _melMap[hbInLoop];
+      if(mfreqs){ for(const f of mfreqs) _marimba(ac, dest, f, t, melVol, 0.38); }
     }
 
-    // ── Accordion chord pad: one per bar on beat 1 ──
-    if(hbInBar === 0){
+    // ── Layer 1: Banjo bass pluck ──
+    if(lBass > 0){
+      const bVol = baseVol * lBass * 1.1 * (1 + lSwell * 0.3);
+      if(hbInBar === 0 || hbInBar === 4){
+        const root = _BASS_ROOT[bar % _BASS_ROOT.length];
+        _banjo(ac, dest, root, t, bVol);
+        if(hbInBar === 4) _banjo(ac, dest, root * 1.5, t + HB * 0.5, bVol * 0.5);
+      }
+      if(hbInBar === 2 || hbInBar === 6){
+        const root = _BASS_ROOT[bar % _BASS_ROOT.length];
+        _banjo(ac, dest, root, t, bVol * 0.5);
+      }
+    }
+
+    // ── Layer 2: Accordion chord pad ──
+    if(lChord > 0 && hbInBar === 0){
+      const cVol = baseVol * lChord * (1 + lSwell * 0.4);
       const chordFreqs = _CHORD_PROG[bar % _CHORD_PROG.length][0];
-      _chord(ac, dest, chordFreqs, t, vol, BAR * 0.85);
+      _chord(ac, dest, chordFreqs, t, cVol, BAR * 0.85);
     }
 
-    // ── Woodblock: accent on beats 1 & 3, lighter tap on 2 & 4 ──
-    if(hbInBar === 0) _wood(ac, dest, t, vol, true);
-    else if(hbInBar === 4) _wood(ac, dest, t, vol, true);
-    else if(hbInBar === 2 || hbInBar === 6) _wood(ac, dest, t, vol, false);
+    // ── Layer 3: Woodblock percussion ──
+    if(lWood > 0){
+      const wVol = baseVol * lWood * (1 + lSwell * 0.3);
+      if(hbInBar === 0 || hbInBar === 4) _wood(ac, dest, t, wVol, true);
+      else if(hbInBar === 2 || hbInBar === 6) _wood(ac, dest, t, wVol, false);
+    }
+
+    // ── Layer 4: Flute counter-melody ──
+    if(lCounter > 0){
+      const fVol = baseVol * lCounter * 0.9 * (1 + lSwell * 0.4);
+      const cfreqs = _ctrMap[hbInLoop];
+      if(cfreqs){ for(const f of cfreqs) _flute(ac, dest, f, t, fVol, HB * 1.6); }
+    }
+
+    // ── Layer 5: String pad ──
+    if(lStrings > 0 && hbInBar === 0){
+      const sVol = baseVol * lStrings * (1 + lSwell * 0.5);
+      _strings(ac, dest, _STRING_PROG[bar % _STRING_PROG.length], t, sVol, BAR * 0.9);
+    }
+
+    // ── Layer 6: Sub-bass pulse ──
+    if(lSub > 0 && hbInBar === 0){
+      const subVol = baseVol * lSub * 1.4 * (1 + lSwell * 0.3);
+      _subBass(ac, dest, _BASS_ROOT[bar % _BASS_ROOT.length], t, subVol);
+    }
+
+    // ── Swell shimmer ──
+    if(lSwell > 0.05 && (hbInBar === 0 || hbInBar === 4)){
+      const shimVol = baseVol * lSwell * 0.7;
+      const shimFreqs = [_N.B5, _N.D6, _N.G5, _N.A5, _N.E6];
+      const sf = shimFreqs[(absHB + bar) % shimFreqs.length];
+      _shimmer(ac, dest, sf, t, shimVol);
+      _shimmer(ac, dest, sf * 2, t + HB * 0.33, shimVol * 0.5);
+    }
   }
 
   function _musicTick(){
@@ -592,11 +809,17 @@ const SFX = (() => {
       while(true){
         const hbTime = _schedTime + _schedHB * HB;
         if(hbTime > horizon) break;
-        _scheduleHB(ac, _musicGain, _schedHB % TOTAL_HB, hbTime);
+
+        // Check if we've completed a full cycle — if so, reset cycle counter
+        const chb = _schedHB - _cycleStartHB;
+        if(chb >= CYCLE_HB){
+          _cycleStartHB = _schedHB;
+        }
+
+        _scheduleHB(ac, _musicGain, _schedHB, hbTime);
         _schedHB++;
       }
     }catch(e){}
-    // Re-arm
     _musicTimer = setTimeout(_musicTick, INTERVAL * 1000 * 0.5);
   }
 
@@ -610,8 +833,9 @@ const SFX = (() => {
         const shouldMute = settings.mute || settings.muteMusic;
         _musicGain.gain.setValueAtTime(shouldMute ? 0 : 1.0, ac.currentTime);
         _musicGain.connect(ac.destination);
-        _schedHB   = 0;
-        _schedTime = ac.currentTime + 0.08; // tiny start delay
+        _schedHB      = 0;
+        _cycleStartHB = 0;
+        _schedTime    = ac.currentTime + 0.08;
         if(!shouldMute) _musicTick();
       };
       if(ac.state === 'suspended'){ ac.resume().then(doStart); } else { doStart(); }
@@ -625,27 +849,24 @@ const SFX = (() => {
   }
 
   function syncMusicVolume(){
-    // Instantly apply mute/unmute via the master gain node (no scheduling lag)
     const shouldMute = settings.mute || settings.muteMusic;
     if(_musicGain){
       try{
         const ac = getCtx();
         const now = ac.currentTime;
         if(shouldMute){
-          _musicGain.gain.setTargetAtTime(0, now, 0.04); // fast ~40ms fade to silence
+          _musicGain.gain.setTargetAtTime(0, now, 0.04);
         } else {
           _musicGain.gain.setTargetAtTime(1.0, now, 0.04);
         }
       }catch(e){}
     }
-    // Pause/resume the scheduler too
     if(shouldMute && _musicTimer !== null){
       clearTimeout(_musicTimer); _musicTimer = null;
     } else if(!shouldMute && _musicStarted && _musicTimer === null){
-      // Resume from where we would be (advance schedule pointer past silence gap)
       try{
         const ac = getCtx();
-        _schedTime = ac.currentTime - _schedHB * HB + 0.08; // re-anchor to now
+        _schedTime = ac.currentTime - _schedHB * HB + 0.08;
         _musicTick();
       }catch(e){ _musicTick(); }
     }
@@ -1987,7 +2208,7 @@ function updateHarpoon(dt){
           break;
         }
         harpoon.fish=fish; fish.caught=true; harpoon.status='back'; game.shake=8;
-        harpoon.tipY=centerY; burst(harpoon.tipX,harpoon.tipY,fish.type.body,18);
+        harpoon.tipY=centerY; burst(harpoon.tipX,harpoon.tipY, fish.variant ? fish.variant.border : fish.type.body, 18);
         SFX.stopReel(); SFX.fishCaught(fish.type.id);
         break;
       }
