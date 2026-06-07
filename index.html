@@ -2330,11 +2330,11 @@ const tutorialSteps = [
   // 3: Open menu → shop (highlight right panel/menu button)
   { text:'Nice catch! Open the MENU and head to the Shop to buy an upgrade with your gem!', icon:'☰', action:'Open MENU → Shop', highlight:'hud_right' },
   // 4: Buy any shop upgrade (must buy something to continue)
-  { text:'You have a free gem! Buy any upgrade you like — Harpoon Speed is a great start.', icon:'💎', action:'Buy an upgrade', highlight:'panel_shop' },
+  { text:'You have a free gem! Buy any upgrade you like — Harpoon Speed is a great start.', icon:'💎', action:'Buy an upgrade', highlight:'panel_settings' },
   // 5: Visit quests tab (open menu → quests)
-  { text:'Nice upgrade! Now open the MENU and check out your QUESTS tab.', icon:'📋', action:'Open MENU → Quests', highlight:'hud_right' },
+  { text:'Nice upgrade! Now open the MENU and check out your QUESTS tab.', icon:'📋', action:'Open MENU → Quests', highlight:'panel_quests' },
   // 6: Visit settings/sound via menu
-  { text:'These are your quests — complete them for big coin rewards! Now check SETTINGS.', icon:'⚙', action:'Open MENU → Settings', highlight:'panel_quests' },
+  { text:'These are your quests — complete them for big coin rewards! Now check SETTINGS.', icon:'⚙', action:'Open MENU → Settings', highlight:'panel_settings' },
   // 7: Close menu / go back to fishing
   { text:'Settings let you adjust sound. Close the menu now and keep fishing!', icon:'🎣', action:'Close the menu', highlight:'panel_settings' },
   // 8: Reach 150 coins — open shop → maps to sail to coral reef
@@ -2369,6 +2369,33 @@ const tutorialSteps = [
   { text:'🎉 Tutorial Complete! You\'ve mastered the basics, Captain. Good luck out there!', icon:'🏆', action:'', highlight:null },
 ];
 
+function dimOutsideRoundRect(x,y,w,h,r=18){
+  ctx.fillStyle='rgba(0,0,15,.52)';
+
+  // top
+  ctx.fillRect(0,0,W,y);
+
+  // left
+  ctx.fillRect(0,y,x,h);
+
+  // right
+  ctx.fillRect(x+w,y,W-(x+w),h);
+
+  // bottom
+  ctx.fillRect(0,y+h,W,H-(y+h));
+
+  // highlight border
+  ctx.save();
+  ctx.strokeStyle='rgba(255,241,106,.95)';
+  ctx.lineWidth=4;
+  ctx.shadowColor='rgba(255,241,106,.8)';
+  ctx.shadowBlur=20;
+  ctx.beginPath();
+  ctx.roundRect(x,y,w,h,r);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawTutorial(){
   if(!game.tutorial.active) return;
 
@@ -2387,33 +2414,52 @@ function drawTutorial(){
 
   ctx.save();
 
-  if(hl === 'hud_right'){
-    // Dim everything except the right HUD panel (MENU button)
-    ctx.fillStyle = 'rgba(0,0,15,.60)';
-    // top strip above right panel
-    ctx.fillRect(0, 0, W, hudRightY);
-    // left of right panel
-    ctx.fillRect(0, hudRightY, hudRightX, hudRightH);
-    // right of right panel (none needed)
-    // below right panel down to bottom (leave room for tutorial bar)
-    ctx.fillRect(0, hudRightY + hudRightH, W, H - (hudRightY + hudRightH) - 160);
-    // Dim left panel too
-    ctx.fillRect(hudLeftX - 4, hudLeftY - 4, hudLeftW + 8, hudLeftH + 8);
-  } else if(hl === 'panel_shop'){
-    // Panel is open on shop; dim the dark overlay but leave the panel bright
-    ctx.fillStyle = 'rgba(0,0,15,.52)';
-    // dim outside panel
-    ctx.fillRect(0, 0, panelX, H);
-    ctx.fillRect(panelX + panelW, 0, W - panelX - panelW, H);
-    ctx.fillRect(panelX, 0, panelW, panelY);
-    ctx.fillRect(panelX, panelY + panelH, panelW, H - panelY - panelH);
-  } else if(hl === 'panel_quests' || hl === 'panel_settings' || hl === 'panel_catches' || hl === 'panel_rods' || hl === 'panel_bait'){
-    // Same: keep panel area bright
-    ctx.fillStyle = 'rgba(0,0,15,.52)';
-    ctx.fillRect(0, 0, panelX, H);
-    ctx.fillRect(panelX + panelW, 0, W - panelX - panelW, H);
-    ctx.fillRect(panelX, 0, panelW, panelY);
-    ctx.fillRect(panelX, panelY + panelH, panelW, H - panelY - panelH);
+  const noDimmingSteps = [
+    2, 8, 10, 12, 14, 16, 18, 20, 22
+  ];
+
+  if(noDimmingSteps.includes(game.tutorial.step)){
+    // keep everything visible
+  } else if(hl === 'hud_right'){
+    const menuBtnRect = {
+      x: W-298,
+      y: 76,
+      w: 256,
+      h: 44
+    };
+    const panelRect = {
+      x: 175,
+      y: 95,
+      w: 1160,
+      h: 670
+    };
+    const panelOpen =
+      game.panel &&
+      game.panel === 'menu';
+    const r = panelOpen ? panelRect : menuBtnRect;
+    dimOutsideRoundRect(
+      r.x - 8,
+      r.y - 8,
+      r.w + 16,
+      r.h + 16,
+      22
+    );
+  } else if(
+    hl === 'panel_shop' ||
+    hl === 'panel_quests' ||
+    hl === 'panel_settings' ||
+    hl === 'panel_catches' ||
+    hl === 'panel_rods' ||
+    hl === 'panel_bait' ||
+    hl === 'panel_maps'
+  ){
+    dimOutsideRoundRect(
+      panelX,
+      panelY,
+      panelW,
+      panelH,
+      24
+    );
   } else {
     // Default: dim everything
     ctx.fillStyle = 'rgba(0,0,15,.52)';
