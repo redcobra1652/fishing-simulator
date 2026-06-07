@@ -911,7 +911,7 @@ const maps = [
   { id:'ice', name:'Frozen Abyss', cost:2200, mult:1.4, depth:'#7ee8ff', sky1:'#e8fbff', sky2:'#0d4064', fishBonus:2, rare:4, desc:'Endgame map with elite fish.' },
 
   { id:'mangrove', name:'Mangrove Swamp', cost:4500, mult:1.5, depth:'#1f6b4a', sky1:'#9be7a1', sky2:'#154734', fishBonus:3, rare:5, desc:'Thick swamp waters with strange fish.' },
-  { id:'crystal', name:'Crystal Lagoon', cost:9000, mult:1.6, depth:'#5df2ff', sky1:'#d7ffff', sky2:'#26b6c9', fishBonus:4, rare:6, desc:'Bright crystal water with shiny catches.' },
+  { id:'crystal', name:'Crystal Lagoon', cost:9000, mult:1.6, depth:'#5df2ff', sky1:'#d7ffff', sky2:'#26b6c9', fishBonus:4, rare:6, desc:'Bright shiny crystal waters.' },
   { id:'storm', name:'Stormy Ocean', cost:18000, mult:1.7, depth:'#1d263b', sky1:'#5f6c86', sky2:'#101827', fishBonus:4, rare:7, desc:'Rough waves and powerful fish.' },
   { id:'jungle', name:'Jungle River', cost:35000, mult:1.8, depth:'#0b8f5a', sky1:'#88ff88', sky2:'#0d5c36', fishBonus:5, rare:8, desc:'Fast river full of rare jungle fish.' },
   { id:'toxic', name:'Toxic Marsh', cost:65000, mult:1.9, depth:'#7cff00', sky1:'#d4ff75', sky2:'#234d00', fishBonus:6, rare:9, desc:'Glowing waters with dangerous rewards.' },
@@ -931,6 +931,46 @@ const rods = [
   { id:'elemental', name:'Elemental Harpoon', cost:1000000,  power:1.75, desc:'+75% speed and power.' }
 ];
 
+const boats = [
+  {
+    id: 'dinghy',
+    name: 'Wooden Dinghy',
+    cost: 0,
+    rangeMultiplier: 0.6,
+    desc: 'A humble fishing dinghy. Limited harpoon reach.',
+    color: '#8b4513',
+    accent: '#5c2f0e',
+  },
+  {
+    id: 'sloop',
+    name: 'Reinforced Sloop',
+    cost: 900,
+    rangeMultiplier: 0.72,
+    desc: '72% harpoon range. Sturdier hull for rougher waters.',
+    color: '#607d8b',
+    accent: '#37474f',
+  },
+  {
+    id: 'galleon',
+    name: 'Iron Frigate',
+    cost: 8000,
+    rangeMultiplier: 0.86,
+    desc: '88% harpoon range. Heavy iron warship for deep seas.',
+    color: '#c8a200',
+    accent: '#7a5f00',
+  },
+  {
+    id: 'leviathan',
+    name: 'Golden Galleon',
+    cost: 15000,
+    rangeMultiplier: 1.00,
+    desc: 'Full harpoon range. The finest vessel on the seas.',
+    color: '#c8a200',
+    accent: '#7a5f00',
+  },
+];
+function currentBoat(){ return boats.find(b=>b.id===(game.boat||'dinghy'))||boats[0]; }
+
 // Rod tier requirement per map (min rod rank needed)
 // Ranks: wood=0, steel=1, gold=2, mythic=3, elemental=4
 const ROD_RANK = { wood:0, steel:1, gold:2, mythic:3, elemental:4 };
@@ -945,6 +985,21 @@ function rodRankOk(mapId){ return ROD_RANK[game.rod] >= (MAP_ROD_REQ[mapId]||0);
 function rodNeededFor(mapId){
   const need = MAP_ROD_REQ[mapId]||0;
   return Object.keys(ROD_RANK).find(k=>ROD_RANK[k]===need)||'wood';
+}
+
+// Boat tier requirement per map
+// Ranks: dinghy=0, sloop=1, galleon=2, leviathan=3
+const BOAT_RANK = { dinghy:0, sloop:1, galleon:2, leviathan:3 };
+const MAP_BOAT_REQ = {
+  bay:0, reef:0, deep:0, lava:1, ice:1,
+  mangrove:1, crystal:1, storm:1, jungle:1,
+  toxic:2, desert:2, moon:2,
+  void:3, heaven:3, galaxy:3
+};
+function boatRankOk(mapId){ return BOAT_RANK[game.boat||'dinghy'] >= (MAP_BOAT_REQ[mapId]||0); }
+function boatNeededFor(mapId){
+  const need = MAP_BOAT_REQ[mapId]||0;
+  return boats.find(b=>BOAT_RANK[b.id]===need)||boats[0];
 }
 
 const fishTypesByMap = {
@@ -1082,7 +1137,8 @@ function chooseVariant(typeId){
 const game = {
   coins: 0, gems: 0, score: 0, caught: 0, bestCatch: 'None',
   map:'bay', rod:'wood', bait:0, mapBaitActive:false, mutationBaitActive:false, hudHidden:false,
-  unlockedMaps:{bay:true}, unlockedRods:{wood:true},
+  unlockedMaps:{bay:true}, unlockedRods:{wood:true}, unlockedBoats:{dinghy:true},
+  boat:'dinghy', gearTab:'harpoons',
   shopTab:'upgrades', panel:null, panelFrom:null, mouseX:750, mouseY:430, last:0, wave:0, shake:0,
   combo:1, comboTimer:0,
   potions:{luck:0, speed:0, coin:0},
@@ -1118,12 +1174,12 @@ const game = {
 function save(){
   try {
     game.soundSettings = {...SFX.settings};
-    localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked,soundSettings:game.soundSettings})); 
+    localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,boat:game.boat,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,unlockedBoats:game.unlockedBoats,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked,soundSettings:game.soundSettings})); 
   } catch (e) {
     console.warn("Save failed: Storage might be full or private.");
   }
 }
-function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; game.mapBaitActive=false; game.mutationBaitActive=false; game._baitTimers={}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; game.mapBaitActive=false; game.mutationBaitActive=false; game._baitTimers={}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(!game.boat) game.boat='dinghy'; if(!game.unlockedBoats) game.unlockedBoats={dinghy:true}; if(!game.gearTab) game.gearTab='harpoons'; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); }catch(e){} }
 function reset(){ localStorage.removeItem('fishingEmpireSave'); location.reload(); }
 function currentMap(){ return maps.find(m=>m.id===game.map); }
 function currentRod(){ return rods.find(r=>r.id===game.rod); }
@@ -2194,7 +2250,9 @@ function updateHarpoon(dt){
   const sy=160;
   if(harpoon.status==='still'){
     // Mouse-controlled horizontal aiming. It still drops straight down when fired.
-    harpoon.x = clamp(game.mouseX,210,W-210);
+    const boatRange = currentBoat().rangeMultiplier;
+    const margin = Math.round(210 + (1 - boatRange) * (W/2 - 210));
+    harpoon.x = clamp(game.mouseX, margin, W - margin);
     harpoon.tipX = harpoon.x; harpoon.tipY = sy;
     return;
   }
@@ -2345,10 +2403,14 @@ const tutorialSteps = [
   { text:'Welcome to the Coral Reef! Keep fishing and earn 400 coins to unlock the Deep Sea.', icon:'🐠', action:'Earn 400 coins total', highlight:null },
   // 11: Must go to deep sea
   { text:'400 coins reached! Open MENU → Maps and sail to the Deep Sea!', icon:'🌊', action:'Open MENU → Maps → Deep Sea', highlight:'hud_right' },
-  // 12: On deep sea, earn to 1000 for volcano
-  { text:'The Deep Sea! Rare fish lurk here. Earn 1,000 coins to reach the Volcano Coast!', icon:'🔵', action:'Earn 1,000 coins total', highlight:null },
-  // 13: Must go to volcano coast
-  { text:'1,000 coins! Open MENU → Maps and sail to the Volcano Coast!', icon:'🌋', action:'Open MENU → Maps → Volcano Coast', highlight:'hud_right' },
+  // 12: On deep sea, earn to 1000 for volcano (now need sloop too)
+  { text:'The Deep Sea! Rare fish lurk here. Earn 1,000 coins — then buy a Reinforced Sloop!', icon:'🔵', action:'Earn 1,000 coins total', highlight:null },
+  // 13: Must buy Reinforced Sloop in gear before going to volcano
+  { text:'1,000 coins! Open MENU → Gear → Boats and buy the Reinforced Sloop — you\'ll need it!', icon:'⛵', action:'Open MENU → Gear → Buy Reinforced Sloop', highlight:'hud_right' },
+  // 14: Fish to rebuild coins after buying sloop (sloop costs 900)
+  { text:'Great boat! Keep fishing and earn back some coins before sailing to the Volcano Coast.', icon:'🎣', action:'Earn 500 coins', highlight:null },
+  // 15: Must go to volcano coast
+  { text:'Ready to sail! Open MENU → Maps and head to the Volcano Coast!', icon:'🌋', action:'Open MENU → Maps → Volcano Coast', highlight:'hud_right' },
   // 14: On volcano, fish until can afford volcano bait (300 coins = 30% of 1000)
   { text:'Volcano Coast! Fish here and earn enough to buy Volcano Coast Bait in the Bait shop!', icon:'🪱', action:'Earn coins for Volcano Coast Bait', highlight:null },
   // 15: Must open menu → bait and buy volcano coast bait specifically
@@ -2415,7 +2477,7 @@ function drawTutorial(){
   ctx.save();
 
   const noDimmingSteps = [
-    2, 8, 10, 12, 14, 16, 18, 20, 22
+    2, 8, 10, 12, 14, 16, 18, 20, 22, 24
   ];
 
   if(noDimmingSteps.includes(game.tutorial.step)){
@@ -2481,6 +2543,10 @@ function drawTutorial(){
 
   ctx.restore();
 
+  // Steps where the player is purely fishing — hide the bottom bar so the water is visible
+  const hideBarSteps = [2, 8, 10, 12, 14, 16, 18, 22];
+  if(hideBarSteps.includes(game.tutorial.step)) return;
+
   // Tutorial bar at bottom — tall, clean card
   const barH=128, barY=H-barH-18, barX=18, barW=W-36;
   roundRect(barX,barY,barW,barH,22,'rgba(8,20,50,.96)','rgba(100,180,255,.45)',2.5);
@@ -2509,7 +2575,7 @@ function drawTutorial(){
   }
 
   // Dynamic coin progress for "earning" steps
-  const coinGoalByStep = { 8:150, 10:400, 12:1000, 14:300, 20:2200 };
+  const coinGoalByStep = { 8:150, 10:400, 12:1000, 14:500, 16:300, 22:2200 };
   const coinGoal = coinGoalByStep[game.tutorial.step];
   if(coinGoal !== undefined){
     const coinPct = Math.min(1, game.coins / coinGoal);
@@ -2606,55 +2672,63 @@ function updateTutorial(){
   else if(s === 12){
     if(game.coins >= 1000) t.step++;
   }
-  // STEP 13: must sail to volcano coast
+  // STEP 13: must buy Reinforced Sloop (new step)
   else if(s === 13){
+    if(game.unlockedBoats && game.unlockedBoats['sloop']) t.step++;
+  }
+  // STEP 14: fish to rebuild coins after sloop purchase
+  else if(s === 14){
+    if(game.coins >= 1000) t.step++;
+  }
+  // STEP 15: must sail to volcano coast
+  else if(s === 15){
     if(game.map === 'lava') t.step++;
   }
-  // STEP 14: earn enough for volcano coast bait (300 coins = 30% of 1000)
-  else if(s === 14){
-    const volcBaitCost = 300; // 30% of lava cost 1000
+  // STEP 16: earn enough for volcano coast bait (300 coins)
+  else if(s === 16){
+    const volcBaitCost = 300;
     if(game.coins >= volcBaitCost) t.step++;
   }
-  // STEP 15: must open bait panel and buy the map bait (Volcano Coast Bait)
-  else if(s === 15){
+  // STEP 17: must open bait panel and buy the map bait
+  else if(s === 17){
     if(t._baitSnapshot === undefined) t._baitSnapshot = false;
     if(game.mapBaitActive && !t._baitSnapshot){
       t._baitSnapshot = true;
       t.step++;
     }
   }
-  // STEP 16: earn 1200 coins
-  else if(s === 16){
+  // STEP 18: earn coins, show catches hint
+  else if(s === 18){
     if(!t._showedCatchesHint) t._showedCatchesHint = false;
     if(game.coins >= 700 && !t._showedCatchesHint){
       t._showedCatchesHint = true;
-      t.step++; // Go to step 17 (show catches hint)
+      t.step++;
     }
   }
-  // STEP 17: open catches collection
-  else if(s === 17){
+  // STEP 19: open catches collection
+  else if(s === 19){
     if(game.panel === 'collection') t.step++;
   }
-  // STEP 18: close collection, keep earning to 1200
-  else if(s === 18){
+  // STEP 20: close collection, keep earning to 1200
+  else if(s === 20){
     if(game.panel === null || game.panel === 'menu') t.step++;
   }
-  // STEP 19 (was part of 16): earn 1200 and buy steel harpoon in gear
-  else if(s === 19){
+  // STEP 21: earn 1200 and buy steel harpoon in gear
+  else if(s === 21){
     if(game.coins >= 1200) {
-      if(!t._waitingForRod19) t._waitingForRod19 = true;
+      if(!t._waitingForRod21) t._waitingForRod21 = true;
     }
     if(game.rod === 'steel' || (game.unlockedRods && game.unlockedRods['steel'])) t.step++;
   }
-  // STEP 20: earn 2200 coins (ice map cost)
-  else if(s === 20){
+  // STEP 22: earn 2200 coins (ice map cost)
+  else if(s === 22){
     if(game.coins >= 2200) t.step++;
   }
-  // STEP 21: sail to frozen abyss
-  else if(s === 21){
+  // STEP 23: sail to frozen abyss
+  else if(s === 23){
     if(game.map === 'ice') t.step++;
   }
-  // STEP 22: final — stays until player clicks button
+  // STEP 24: final — stays until player clicks button
 }
 
 function spawnFish(){ game.fish=[]; const count=15+currentMap().fishBonus; for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
@@ -3410,7 +3484,130 @@ function drawWater(y,color,amp,spd){
 
   ctx.stroke();
 }
-function drawBoat(){ ctx.save(); const tx = game.transition.active ? W/2 + game.transition.boatX : W/2; ctx.translate(tx,105); ctx.shadowColor='rgba(0,0,0,.28)'; ctx.shadowBlur=12; ctx.shadowOffsetY=8; ctx.fillStyle='#8b4513'; ctx.beginPath(); ctx.moveTo(-170,35); ctx.lineTo(170,35); ctx.lineTo(115,105); ctx.lineTo(-115,105); ctx.closePath(); ctx.fill(); ctx.fillStyle='#5c2f0e'; ctx.fillRect(-110,55,220,18); roundRect(-62,-25,124,65,12,'#f7f1e3','#8b4513',5); roundRect(-42,-10,35,28,6,'#54a0ff','#2e86de',3); roundRect(10,-10,35,28,6,'#54a0ff','#2e86de',3); ctx.fillStyle='#3d2b1f'; ctx.fillRect(-6,-85,12,70); ctx.fillStyle='#ffdd59'; ctx.beginPath(); ctx.moveTo(8,-82); ctx.lineTo(76,-48); ctx.lineTo(8,-18); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function drawBoat(){
+  ctx.save();
+  const tx = game.transition.active ? W/2 + game.transition.boatX : W/2;
+  ctx.translate(tx, 105);
+  ctx.shadowColor='rgba(0,0,0,.28)'; ctx.shadowBlur=12; ctx.shadowOffsetY=8;
+
+  const boatId = game.boat || 'dinghy';
+
+  if(boatId === 'dinghy'){
+    // Simple wooden dinghy — flat hull, single mast
+    ctx.fillStyle='#8b4513';
+    ctx.beginPath(); ctx.moveTo(-130,38); ctx.lineTo(130,38); ctx.lineTo(90,100); ctx.lineTo(-90,100); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#5c2f0e'; ctx.fillRect(-85,55,170,12);
+    ctx.fillStyle='#3d2b1f'; ctx.fillRect(-5,-30,10,70);
+    ctx.fillStyle='#ffdd59';
+    ctx.beginPath(); ctx.moveTo(7,-27); ctx.lineTo(60,0); ctx.lineTo(7,26); ctx.closePath(); ctx.fill();
+
+  } else if(boatId === 'sloop'){
+    // Reinforced Sloop — looks like the classic wooden dinghy with cabin
+    ctx.fillStyle='#8b4513';
+    ctx.beginPath(); ctx.moveTo(-170,35); ctx.lineTo(170,35); ctx.lineTo(115,105); ctx.lineTo(-115,105); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#5c2f0e'; ctx.fillRect(-110,55,220,18);
+    roundRect(-62,-25,124,65,12,'#f7f1e3','#8b4513',5);
+    roundRect(-42,-10,35,28,6,'#54a0ff','#2e86de',3);
+    roundRect(10,-10,35,28,6,'#54a0ff','#2e86de',3);
+    ctx.fillStyle='#3d2b1f'; ctx.fillRect(-6,-85,12,70);
+    ctx.fillStyle='#ffdd59';
+    ctx.beginPath(); ctx.moveTo(8,-82); ctx.lineTo(76,-48); ctx.lineTo(8,-18); ctx.closePath(); ctx.fill();
+
+  } else if(boatId === 'galleon'){
+    // Iron Galleon — dark iron hull, two heavy masts, no gold
+    const hullGrad = ctx.createLinearGradient(0,32,0,112);
+    hullGrad.addColorStop(0,'#546e7a'); hullGrad.addColorStop(0.4,'#37474f'); hullGrad.addColorStop(1,'#263238');
+    ctx.fillStyle=hullGrad;
+    ctx.beginPath(); ctx.moveTo(-220,32); ctx.lineTo(220,32); ctx.lineTo(158,112); ctx.lineTo(-158,112); ctx.closePath(); ctx.fill();
+    // Iron hull stripes
+    ctx.strokeStyle='#78909c'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(-218,50); ctx.lineTo(218,50); ctx.stroke();
+    ctx.strokeStyle='rgba(120,144,156,.4)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-210,66); ctx.lineTo(210,66); ctx.stroke();
+    // Iron portholes
+    ctx.fillStyle='#607d8b';
+    [-150,-90,-30,30,90,145].forEach(rx=>{
+      ctx.beginPath(); ctx.arc(rx, 82, 5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#37474f'; ctx.beginPath(); ctx.arc(rx, 82, 3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#607d8b';
+    });
+    // Grand cabin — dark iron
+    roundRect(-72,-28,144,68,12,'#37474f','#607d8b',5);
+    roundRect(-56,-15,38,30,6,'#81d4fa','#1a7acc',3);
+    roundRect(18,-15,38,30,6,'#81d4fa','#1a7acc',3);
+    // Two masts — iron
+    ctx.fillStyle='#263238';
+    ctx.fillRect(-5,-82,10,54);
+    ctx.fillRect(-46,-68,8,40);
+    // Main sail
+    ctx.fillStyle='#cfd8dc';
+    ctx.beginPath(); ctx.moveTo(5,-80); ctx.lineTo(68,-52); ctx.lineTo(5,-28); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.10)'; ctx.lineWidth=1; ctx.stroke();
+    // Port sail
+    ctx.fillStyle='#b0bec5';
+    ctx.beginPath(); ctx.moveTo(-38,-66); ctx.lineTo(18,-46); ctx.lineTo(-38,-26); ctx.closePath(); ctx.fill();
+    // Iron anchor on hull
+    ctx.fillStyle='#78909c';
+    ctx.font='bold 20px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('⚓', 0, 88);
+    ctx.strokeStyle='#90a4ae'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(218,38); ctx.lineTo(256,18); ctx.stroke();
+
+  } else if(boatId === 'leviathan'){
+    // Grand golden galleon — ornate, wide, triple-masted
+    const hullGrad = ctx.createLinearGradient(0,32,0,112);
+    hullGrad.addColorStop(0,'#d4a800'); hullGrad.addColorStop(0.4,'#a07800'); hullGrad.addColorStop(1,'#5c3d00');
+    ctx.fillStyle=hullGrad;
+    ctx.beginPath(); ctx.moveTo(-220,32); ctx.lineTo(220,32); ctx.lineTo(158,112); ctx.lineTo(-158,112); ctx.closePath(); ctx.fill();
+    // Gold hull stripes
+    ctx.strokeStyle='#ffd740'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(-218,50); ctx.lineTo(218,50); ctx.stroke();
+    ctx.strokeStyle='rgba(255,215,0,.45)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-210,66); ctx.lineTo(210,66); ctx.stroke();
+    // Gold portholes
+    ctx.fillStyle='#ffd740';
+    [-170,-110,-50,10,70,130,175].forEach(rx=>{
+      if(Math.abs(rx) > 175) return;
+      ctx.beginPath(); ctx.arc(rx, 82, 5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#b8860b'; ctx.beginPath(); ctx.arc(rx, 82, 3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#ffd740';
+    });
+    // Grand cabin
+    roundRect(-72,-28,144,68,12,'#6d3b00','#d4a800',5);
+    roundRect(-56,-15,38,30,6,'#7ec8e3','#1a7acc',3);
+    roundRect(18,-15,38,30,6,'#7ec8e3','#1a7acc',3);
+    ctx.strokeStyle='#ffd740'; ctx.lineWidth=2;
+    roundRect(-57,-16,40,32,6,null,'#ffd740',2);
+    roundRect(17,-16,40,32,6,null,'#ffd740',2);
+    // Three masts
+    ctx.fillStyle='#4a2800';
+    ctx.fillRect(-5,-82,10,54);
+    ctx.fillRect(-46,-68,8,40);
+    ctx.fillRect(38,-65,8,38);
+    // Main sail
+    const mainSail = ctx.createLinearGradient(5,-80,72,-28);
+    mainSail.addColorStop(0,'#fff9e6'); mainSail.addColorStop(1,'#f0d080');
+    ctx.fillStyle=mainSail;
+    ctx.beginPath(); ctx.moveTo(5,-80); ctx.lineTo(72,-52); ctx.lineTo(5,-28); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.10)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='#fff3cc';
+    ctx.beginPath(); ctx.moveTo(-38,-66); ctx.lineTo(18,-46); ctx.lineTo(-38,-26); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#fdf3c0';
+    ctx.beginPath(); ctx.moveTo(46,-63); ctx.lineTo(90,-46); ctx.lineTo(46,-22); ctx.closePath(); ctx.fill();
+    // Pennant
+    ctx.fillStyle='#ffd740';
+    ctx.beginPath(); ctx.moveTo(-5,-82); ctx.lineTo(-32,-70); ctx.lineTo(-5,-60); ctx.closePath(); ctx.fill();
+    // Crown emblem
+    ctx.fillStyle='#ffd740';
+    ctx.font='bold 20px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('👑', 0, 88);
+    // Bowsprit
+    ctx.strokeStyle='#4a2800'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(218,38); ctx.lineTo(262,18); ctx.stroke();
+  }
+
+  ctx.restore();
+}
 function getHarpoonColors(){
   const rod = game.rod;
   if(rod==='steel')     return { shaft:'#b0c4d8', tip:'#778899', head:'#e8eef4', line:'rgba(140,160,180,.9)', glow:null };
@@ -3971,7 +4168,7 @@ function drawHUD() {
   // MENU button (single big button)
   const pulse = 0.7 + Math.sin(Date.now() * 0.01) * 0.3;
   // Only pulse MENU button when no panel is open (once a panel opens, highlight moves to back/X button)
-  const anyTutorialHighlight = game.tutorial.active && !game.panel && [3,5,6,9,11,13,15,17,19,21].includes(game.tutorial.step);
+  const anyTutorialHighlight = game.tutorial.active && !game.panel && [3,5,6,9,11,13,15,17,19,21,23].includes(game.tutorial.step);
   const menuBtnX = rightX + 12, menuBtnY = 76, menuBtnW = panelW - 24, menuBtnH = 44;
   const menuHov = game.mouseX >= menuBtnX && game.mouseX <= menuBtnX + menuBtnW && game.mouseY >= menuBtnY && game.mouseY <= menuBtnY + menuBtnH;
   const menuColor = anyTutorialHighlight ? `rgba(255,241,106,${pulse})` : (menuHov ? '#2daaf5' : '#0984e3');
@@ -4020,12 +4217,12 @@ function drawPanel(){
   // ← Back pulses when:
   //   - On a sub-panel and tutorial wants you to navigate to another sub-panel (need to go back to menu first)
   //   - Steps 5 (on shop→need quests), 6 (on quests→need settings), 7 (on any sub→close means back then X), 18 (on any sub→close means back then X)
-  const tutNeedsBack = game.tutorial.active && isSubPanel && [5, 6, 7, 18].includes(game.tutorial.step);
+  const tutNeedsBack = game.tutorial.active && isSubPanel && [5, 6, 7, 20].includes(game.tutorial.step);
 
   // X pulses when:
   //   - On the menu panel on steps 7 or 18 (user has backed out and now needs to fully close)
   //   - On a sub-panel on steps 7 or 18 is handled by back button above; once they back to menu, X takes over
-  const tutNeedsX = game.tutorial.active && game.panel === 'menu' && [7, 18].includes(game.tutorial.step);
+  const tutNeedsX = game.tutorial.active && game.panel === 'menu' && [7, 20].includes(game.tutorial.step);
 
   if(isSubPanel){
     // ← Back button
@@ -4067,11 +4264,11 @@ function drawMenuPanel(){
 
   const btns = [
     { label:'Shop',       icon:'🛒', sub:'Buy upgrades & bait',  color:'#0fbcf9', dark:'#0984e3', panel:'shop',       tutStep:3  },
-    { label:'Maps',       icon:'🗺',  sub:'Travel to new waters', color:'#00cec9', dark:'#00a8a4', panel:'maps',       tutStep:[9,11,13,21]  },
+    { label:'Maps',       icon:'🗺',  sub:'Travel to new waters', color:'#00cec9', dark:'#00a8a4', panel:'maps',       tutStep:[9,11,15,23]  },
     { label:'Quests',     icon:'📋', sub:'Daily fishing goals',   color:'#55efc4', dark:'#00b894', panel:'quests',     tutStep:5  },
-    { label:'Bait',       icon:'🪱', sub:'Boost your catches',    color:'#a29bfe', dark:'#6c5ce7', panel:'bait',       tutStep:15 },
-    { label:'Gear',       icon:'🔱', sub:'Upgrade your harpoon', color:'#fdcb6e', dark:'#e17055', panel:'rods',       tutStep:19  },
-    { label:'Catches',    icon:'🐟', sub:'Your fish collection',  color:'#fd79a8', dark:'#e84393', panel:'collection', tutStep:17 },
+    { label:'Bait',       icon:'🪱', sub:'Boost your catches',    color:'#a29bfe', dark:'#6c5ce7', panel:'bait',       tutStep:17 },
+    { label:'Gear',       icon:'🔱', sub:'Upgrade your harpoon', color:'#fdcb6e', dark:'#e17055', panel:'rods',       tutStep:[13,21]  },
+    { label:'Catches',    icon:'🐟', sub:'Your fish collection',  color:'#fd79a8', dark:'#e84393', panel:'collection', tutStep:19 },
     { label:'Statistics', icon:'📊', sub:'Your fishing records',  color:'#74b9ff', dark:'#0984e3', panel:'stats',      tutStep:-1 },
     { label:'Settings',   icon:'⚙',  sub:'Sound & preferences',  color: SFX.settings.mute ? '#ff6b6b' : '#b2bec3', dark: SFX.settings.mute ? '#ff4757' : '#636e72', panel:'sound', tutStep:6 },
   ];
@@ -4265,12 +4462,24 @@ function drawMapsPanel(){
       const badgeColor = meetsReq ? 'rgba(46,213,115,.22)' : 'rgba(255,71,87,.22)';
       const badgeBorder = meetsReq ? '#2ed573' : '#ff4757';
       const badgeText = meetsReq ? `✓ ${reqRodName}` : `Needs: ${reqRodName}`;
-      roundRect(startX + 430, y + 24, 270, 32, 10, badgeColor, badgeBorder, 1.5);
-      text(badgeText, startX + 565, y + 40, 14, 'center', meetsReq ? '#7bed9f' : '#ff7675');
+      roundRect(startX + 530, y + 24, 270, 32, 10, badgeColor, badgeBorder, 1.5);
+      text(badgeText, startX + 665, y + 40, 14, 'center', meetsReq ? '#7bed9f' : '#ff7675');
     }
 
-    const canEnter = rodRankOk(m.id);
-    const label = active ? 'Equipped' : unlocked ? (canEnter ? 'Equip' : 'Wrong Rod') : `Buy ${fmt(m.cost)}`;
+    // Boat requirement badge
+    const reqBoatRank = MAP_BOAT_REQ[m.id] || 0;
+    if(reqBoatRank > 0){
+      const reqBoat = boatNeededFor(m.id);
+      const meetsBoat = boatRankOk(m.id);
+      const bbColor = meetsBoat ? 'rgba(46,213,115,.22)' : 'rgba(255,165,0,.22)';
+      const bbBorder = meetsBoat ? '#2ed573' : '#fdcb6e';
+      const bbText = meetsBoat ? `✓ ${reqBoat.name}` : `⛵ Needs: ${reqBoat.name}`;
+      roundRect(startX + 530, y + 60, 270, 28, 10, bbColor, bbBorder, 1.5);
+      text(bbText, startX + 665, y + 74, 13, 'center', meetsBoat ? '#7bed9f' : '#fdcb6e');
+    }
+
+    const canEnter = rodRankOk(m.id) && boatRankOk(m.id);
+    const label = active ? 'Equipped' : unlocked ? (canEnter ? 'Equip' : 'Can\'t Enter') : `Buy ${fmt(m.cost)}`;
     const btnColor = active ? '#636e72' : (!canEnter && unlocked) ? '#ff4757' : '#00cec9';
 
     addButton(
@@ -4290,8 +4499,13 @@ function drawMapsPanel(){
           }
         }
         if(!canEnter && unlocked){
-          const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
-          msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
+          if(!rodRankOk(m.id)){
+            const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
+            msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
+          } else {
+            const bn = boatNeededFor(m.id).name;
+            msg(`Need ${bn} to sail here!`, W/2, 200, '#fdcb6e');
+          }
           return;
         }
         if(unlocked){
@@ -4299,8 +4513,13 @@ function drawMapsPanel(){
           save();
         } else {
           if(!canEnter){
-            const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
-            msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
+            if(!rodRankOk(m.id)){
+              const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
+              msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
+            } else {
+              const bn = boatNeededFor(m.id).name;
+              msg(`Need ${bn} to sail here!`, W/2, 200, '#fdcb6e');
+            }
             return;
           }
           buy(m.cost, ()=>{
@@ -4340,44 +4559,145 @@ function drawMapsPanel(){
   }
 }
 function drawRodsPanel(){
-  // Check elemental quest progress
-  const elemQ = game.quests.find(q=>q.type==='elemental_unlock');
-  const elemUnlocked = game.elementalUnlocked;
+  // ── Tab bar ──
+  const tabs = [
+    { id:'harpoons', label:'⚔ Harpoons' },
+    { id:'boats',    label:'⛵ Boats'    },
+  ];
+  const tabY = 185, tabW = 240, tabH = 46, tabGap = 14;
+  const tabStartX = W/2 - (tabs.length * (tabW + tabGap) - tabGap) / 2;
 
-  rods.forEach((r,i)=>{
-    const y = 220 + i * 105;
-    const unlocked = game.unlockedRods[r.id];
-    const active = game.rod === r.id;
-    const isElem = r.id === 'elemental';
-
-    // Background card — elemental gets special colour
-    let cardFill = active ? 'rgba(253,203,110,.28)' : 'rgba(255,255,255,.10)';
-    let cardBorder = 'rgba(255,255,255,.2)';
-    if(isElem && elemUnlocked && !active){ cardFill='rgba(255,150,40,.12)'; cardBorder='rgba(255,150,40,.5)'; }
-    if(isElem && !elemUnlocked){ cardFill='rgba(80,40,120,.18)'; cardBorder='rgba(160,80,255,.35)'; }
-    roundRect(270,y,970,82,18,cardFill,cardBorder,2);
-
-    // Rod name
-    const nameColor = isElem ? (elemUnlocked ? '#ffcc66' : '#aa66ff') : 'white';
-    text(r.name, 300, y+28, 28, 'left', nameColor);
-
-    if(isElem && !elemUnlocked){
-      // Show quest progress
-      const wc = elemQ?.caughtWyrm  ? '✓':'✗';
-      const hc = elemQ?.caughtHydra ? '✓':'✗';
-      text(`LOCKED — Complete the quest to unlock`, 300, y+58, 17, 'left', '#c8a0ff');
-      // Greyed-out locked button
-      addButton(1020,y+16,180,50,'🔒 Locked',()=>{ msg('Complete the quest to unlock the Elemental Rod!',W/2,200,'#c8a0ff'); },'#4a3060').draw('#4a3060');
-    } else {
-      text(`${r.desc}  •  Power ${r.power}x`, 300, y+58, 18, 'left', '#dfe6e9');
-      const label = active ? 'Equipped' : unlocked ? 'Equip' : `Buy ${fmt(r.cost)}`;
-      const btnCol = active ? '#636e72' : isElem ? '#ff9944' : '#fdcb6e';
-      addButton(1020,y+16,180,50,label,()=>{
-        if(unlocked){ game.rod=r.id; save(); }
-        else buy(r.cost,()=>{ game.unlockedRods[r.id]=true; game.rod=r.id; save(); });
-      }, btnCol).draw(btnCol);
-    }
+  tabs.forEach((tab, i) => {
+    const tx = tabStartX + i * (tabW + tabGap);
+    const active = (game.gearTab || 'harpoons') === tab.id;
+    roundRect(tx, tabY, tabW, tabH, 14,
+      active ? 'rgba(253,203,110,.35)' : 'rgba(255,255,255,.08)',
+      active ? '#fdcb6e' : 'rgba(255,255,255,.22)',
+      active ? 2.5 : 1.5
+    );
+    text(tab.label, tx + tabW/2, tabY + tabH/2 + 1, 20, 'center', active ? '#fff' : '#99a');
+    addButton(tx, tabY, tabW, tabH, '', () => { game.gearTab = tab.id; SFX.buttonClick(); }, 'transparent');
   });
+
+  // ── Content ──
+  if((game.gearTab || 'harpoons') === 'harpoons'){
+    // Harpoon list — starts below tabs with comfortable gap
+    const elemQ = game.quests.find(q=>q.type==='elemental_unlock');
+    const elemUnlocked = game.elementalUnlocked;
+
+    rods.forEach((r,i)=>{
+      const y = 253 + i * 105;
+      const unlocked = game.unlockedRods[r.id];
+      const active = game.rod === r.id;
+      const isElem = r.id === 'elemental';
+
+      let cardFill = active ? 'rgba(253,203,110,.28)' : 'rgba(255,255,255,.10)';
+      let cardBorder = 'rgba(255,255,255,.2)';
+      if(isElem && elemUnlocked && !active){ cardFill='rgba(255,150,40,.12)'; cardBorder='rgba(255,150,40,.5)'; }
+      if(isElem && !elemUnlocked){ cardFill='rgba(80,40,120,.18)'; cardBorder='rgba(160,80,255,.35)'; }
+      roundRect(270,y,970,82,18,cardFill,cardBorder,2);
+
+      const nameColor = isElem ? (elemUnlocked ? '#ffcc66' : '#aa66ff') : 'white';
+      text(r.name, 300, y+28, 28, 'left', nameColor);
+
+      if(isElem && !elemUnlocked){
+        text(`LOCKED — Complete the quest to unlock`, 300, y+58, 17, 'left', '#c8a0ff');
+        addButton(1020,y+16,180,50,'🔒 Locked',()=>{ msg('Complete the quest to unlock the Elemental Rod!',W/2,200,'#c8a0ff'); },'#4a3060').draw('#4a3060');
+      } else {
+        text(`${r.desc}  •  Power ${r.power}x`, 300, y+58, 18, 'left', '#dfe6e9');
+        const label = active ? 'Equipped' : unlocked ? 'Equip' : `Buy ${fmt(r.cost)}`;
+        const btnCol = active ? '#636e72' : isElem ? '#ff9944' : '#fdcb6e';
+        addButton(1020,y+16,180,50,label,()=>{
+          if(unlocked){ game.rod=r.id; save(); }
+          else buy(r.cost,()=>{ game.unlockedRods[r.id]=true; game.rod=r.id; save(); });
+        }, btnCol).draw(btnCol);
+      }
+    });
+
+  } else {
+    // ── Boats tab ──
+    text('Bigger boats extend your harpoon\'s horizontal reach.', W/2, 247, 18, 'center', '#9effff');
+
+    boats.forEach((b, i) => {
+      const y = 270 + i * 118;
+      const unlocked = game.unlockedBoats && game.unlockedBoats[b.id];
+      const active = (game.boat || 'dinghy') === b.id;
+
+      const cardFill = active ? `rgba(200,162,0,.22)` : 'rgba(255,255,255,.08)';
+      const cardBorder = active ? '#ffd740' : 'rgba(255,255,255,.18)';
+      roundRect(200, y, 1110, 100, 20, cardFill, cardBorder, active ? 2.5 : 1.5);
+
+      // Mini boat preview — draw a tiny version at left side of card
+      ctx.save();
+      ctx.translate(320, y + 50);
+      ctx.scale(0.32, 0.32);
+
+      if(b.id === 'dinghy'){
+        // Simple dinghy
+        ctx.fillStyle='#8b4513';
+        ctx.beginPath(); ctx.moveTo(-130,38); ctx.lineTo(130,38); ctx.lineTo(90,100); ctx.lineTo(-90,100); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#5c2f0e'; ctx.fillRect(-85,55,170,12);
+        ctx.fillStyle='#3d2b1f'; ctx.fillRect(-5,-30,10,60);
+        ctx.fillStyle='#ffdd59'; ctx.beginPath(); ctx.moveTo(7,-27); ctx.lineTo(60,0); ctx.lineTo(7,26); ctx.closePath(); ctx.fill();
+
+      } else if(b.id === 'sloop'){
+        // Reinforced sloop — old wooden dinghy look with cabin
+        ctx.fillStyle='#8b4513';
+        ctx.beginPath(); ctx.moveTo(-170,35); ctx.lineTo(170,35); ctx.lineTo(115,105); ctx.lineTo(-115,105); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#5c2f0e'; ctx.fillRect(-110,55,220,18);
+        roundRect(-62,-25,124,65,12,'#f7f1e3','#8b4513',5);
+        roundRect(-42,-10,35,28,6,'#54a0ff','#2e86de',3);
+        roundRect(10,-10,35,28,6,'#54a0ff','#2e86de',3);
+        ctx.fillStyle='#3d2b1f'; ctx.fillRect(-6,-85,12,70);
+        ctx.fillStyle='#ffdd59'; ctx.beginPath(); ctx.moveTo(8,-82); ctx.lineTo(76,-48); ctx.lineTo(8,-18); ctx.closePath(); ctx.fill();
+
+      } else if(b.id === 'galleon'){
+        // Iron galleon preview
+        const hg=ctx.createLinearGradient(0,32,0,112); hg.addColorStop(0,'#546e7a'); hg.addColorStop(0.4,'#37474f'); hg.addColorStop(1,'#263238');
+        ctx.fillStyle=hg; ctx.beginPath(); ctx.moveTo(-220,32); ctx.lineTo(220,32); ctx.lineTo(158,112); ctx.lineTo(-158,112); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='#78909c'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-218,50); ctx.lineTo(218,50); ctx.stroke();
+        ctx.fillStyle='#263238'; ctx.fillRect(-5,-82,10,54); ctx.fillRect(-46,-68,8,40);
+        ctx.fillStyle='#cfd8dc'; ctx.beginPath(); ctx.moveTo(5,-80); ctx.lineTo(68,-52); ctx.lineTo(5,-28); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#b0bec5'; ctx.beginPath(); ctx.moveTo(-38,-66); ctx.lineTo(18,-46); ctx.lineTo(-38,-26); ctx.closePath(); ctx.fill();
+
+      } else if(b.id === 'leviathan'){
+        // Golden galleon preview
+        const hg=ctx.createLinearGradient(0,32,0,112); hg.addColorStop(0,'#d4a800'); hg.addColorStop(0.4,'#a07800'); hg.addColorStop(1,'#5c3d00');
+        ctx.fillStyle=hg; ctx.beginPath(); ctx.moveTo(-220,32); ctx.lineTo(220,32); ctx.lineTo(158,112); ctx.lineTo(-158,112); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='#ffd740'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-218,50); ctx.lineTo(218,50); ctx.stroke();
+        ctx.fillStyle='#4a2800'; ctx.fillRect(-5,-82,10,54); ctx.fillRect(-46,-68,8,40); ctx.fillRect(38,-65,8,38);
+        const ms=ctx.createLinearGradient(5,-80,72,-28); ms.addColorStop(0,'#fff9e6'); ms.addColorStop(1,'#f0d080');
+        ctx.fillStyle=ms; ctx.beginPath(); ctx.moveTo(5,-80); ctx.lineTo(72,-52); ctx.lineTo(5,-28); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#fff3cc'; ctx.beginPath(); ctx.moveTo(-38,-66); ctx.lineTo(18,-46); ctx.lineTo(-38,-26); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#ffd740'; ctx.beginPath(); ctx.moveTo(-5,-82); ctx.lineTo(-32,-70); ctx.lineTo(-5,-60); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#ffd740'; ctx.font='bold 18px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('👑',0,88);
+      }
+
+      ctx.restore();
+
+      // Name & description
+      text(b.name, 430, y + 26, 24, 'left', active ? '#ffd740' : 'white');
+      const boatReqNote = b.id === 'sloop' ? 'Required for Volcano Coast and beyond' : b.id === 'galleon' ? 'Required for Toxic Marsh and beyond' : b.id === 'leviathan' ? 'Required for Void Sea and beyond' : 'Starter boat';
+      text(b.desc, 430, y + 50, 15, 'left', '#dfe6e9');
+      text(boatReqNote, 430, y + 70, 13, 'left', b.id === 'dinghy' ? '#888' : '#fdcb6e');
+
+      // Range bar
+      const barX = 430, barY2 = y + 84, barW2 = 440, barH2 = 8;
+      roundRect(barX, barY2, barW2, barH2, 4, 'rgba(255,255,255,.10)', null, 0);
+      const rangeGrad = ctx.createLinearGradient(barX, barY2, barX + barW2 * b.rangeMultiplier, barY2);
+      rangeGrad.addColorStop(0, '#00cec9'); rangeGrad.addColorStop(1, '#00b894');
+      roundRect(barX, barY2, barW2 * b.rangeMultiplier, barH2, 4, rangeGrad, null, 0);
+      text(`Range: ${Math.round(b.rangeMultiplier * 100)}%`, barX + barW2 + 12, barY2 + 4, 13, 'left', '#7ed6df');
+
+      // Buy / equip button
+      const label = active ? 'Sailing' : unlocked ? 'Sail' : `Buy ${fmt(b.cost)}`;
+      const btnCol = active ? '#636e72' : '#00cec9';
+      addButton(1120, y + 28, 150, 44, label, () => {
+        if(unlocked){ game.boat = b.id; save(); }
+        else buy(b.cost, () => { game.unlockedBoats[b.id]=true; game.boat=b.id; save(); });
+      }, btnCol).draw(btnCol);
+    });
+  }
 }
 function drawBaitPanel(){
   const map = currentMap();
@@ -4531,7 +4851,7 @@ function drawBaitPanel(){
     addButton(btnX3, btnY2, btnW3, btnH3, '', () => {
       if(active) return;
       // Tutorial step 15: only allow buying map bait (not mutation bait)
-      if(game.tutorial.active && game.tutorial.step === 15 && b.key === 'mutationBaitActive'){
+      if(game.tutorial.active && game.tutorial.step === 17 && b.key === 'mutationBaitActive'){
         msg('Buy the Volcano Coast Bait first!', W/2, 200, '#ff7675');
         SFX.error();
         return;
@@ -4881,7 +5201,11 @@ canvas.addEventListener('mousedown', e => {
 canvas.addEventListener('mousemove', e => {
   const p = mousePos(e);
   game.mouseX = p.x; game.mouseY = p.y;
-  if(harpoon.status === 'still') harpoon.x = clamp(game.mouseX, 210, W-210);
+  if(harpoon.status === 'still'){
+    const boatRange = currentBoat().rangeMultiplier;
+    const margin = Math.round(210 + (1 - boatRange) * (W/2 - 210));
+    harpoon.x = clamp(game.mouseX, margin, W - margin);
+  }
   // drag slider
   if(_sliderDragging && game.panel === 'sound' && game._soundSlider){
     const sl = game._soundSlider;
