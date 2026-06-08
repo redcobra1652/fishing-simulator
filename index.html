@@ -1001,6 +1001,16 @@ function boatNeededFor(mapId){
   const need = MAP_BOAT_REQ[mapId]||0;
   return boats.find(b=>BOAT_RANK[b.id]===need)||boats[0];
 }
+// Returns the highest map id the current boat can legally sail on
+function bestMapForBoat(){
+  const rank = BOAT_RANK[game.boat||'dinghy']||0;
+  // iterate maps in reverse to find the highest eligible one that is also unlocked
+  let best = maps[0];
+  for(const m of maps){
+    if((MAP_BOAT_REQ[m.id]||0) <= rank && game.unlockedMaps[m.id]) best = m;
+  }
+  return best;
+}
 
 const fishTypesByMap = {
   bay: [
@@ -3485,6 +3495,9 @@ function drawWater(y,color,amp,spd){
   ctx.stroke();
 }
 function drawBoat(){
+  // During sinking phases, the boat is drawn by drawTransition instead
+  const sinkPhase = game.transition.active && (game.transition.phase === 'sinkIn' || game.transition.phase === 'sinkBlack');
+  if(sinkPhase) return;
   ctx.save();
   const tx = game.transition.active ? W/2 + game.transition.boatX : W/2;
   ctx.translate(tx, 105);
@@ -3713,10 +3726,10 @@ function drawHarpoon(){
 }
 
 
-function changeMap(id){
+function changeMap(id, sinking=false){
   if(game.transition?.active) return;
 
-  if(game.map === id) return;
+  if(game.map === id && !sinking) return;
 
   game.panel = null;
 
@@ -3734,11 +3747,47 @@ function changeMap(id){
     coverAlpha: 0,
     coverPhase: 'none', // 'fill', 'hold', 'drain'
     coverT: 0,
+    // Sinking support
+    sinking: sinking,          // true = will sink on arrival
+    sinkBoatY: 0,              // how far boat has sunk (px)
+    sinkBoatAngle: 0,          // tilt angle while sinking
+    sinkBubbles: [],           // special rising bubbles during sink
+    sinkBlackAlpha: 0,         // fade to black
   };
 
   harpoon.status = 'still';
   harpoon.fish = null;
   harpoon.chest = null;
+}
+
+// Jump straight to sinking — no sail-out, no loading screen.
+// Used when the player equips a boat too weak for the current map.
+function startSinking(){
+  if(game.transition?.active) return;
+  game.panel = null;
+  harpoon.status = 'still';
+  harpoon.fish = null;
+  harpoon.chest = null;
+  game.transition = {
+    active: true,
+    phase: 'sinkIn',
+    t: 0,
+    nextMap: game.map,   // will be overwritten when black screen hits
+    boatX: 0,
+    bubbles: [],
+    coverBubbles: [],
+    loadProgress: 0,
+    fishWiggle: 0,
+    bgBubbleTimer: 0,
+    coverAlpha: 0,
+    coverPhase: 'none',
+    coverT: 0,
+    sinking: true,
+    sinkBoatY: 0,
+    sinkBoatAngle: 0,
+    sinkBubbles: [],
+    sinkBlackAlpha: 0,
+  };
 }
 
 // ── BUBBLE SOUND: procedural underwater bubbling ──
@@ -3860,8 +3909,94 @@ function updateTransition(dt){
     tr.boatX += 900 * delta;
 
     if(tr.boatX >= 0){
-      game.transition = { active:false, phase:'none', t:0, nextMap:null, boatX:0, bubbles:[], coverBubbles:[], loadProgress:0, fishWiggle:0, bgBubbleTimer:0, coverAlpha:0, coverPhase:'none', coverT:0 };
-      msg(`Arrived: ${currentMap().name}`, W/2, 120, '#fff16a');
+      if(tr.sinking){
+        // Switch immediately to sink phase
+        tr.phase = 'sinkIn';
+        tr.t = 0;
+        tr.boatX = 0;
+        tr.sinkBoatY = 0;
+        tr.sinkBoatAngle = 0;
+        tr.sinkBubbles = [];
+        tr.sinkBlackAlpha = 0;
+        tr.sinkWasTraveling = true;
+        msg(`⚠️ Too weak for ${currentMap().name}!`, W/2, 120, '#fdcb6e');
+      } else {
+        game.transition = { active:false, phase:'none', t:0, nextMap:null, boatX:0, bubbles:[], coverBubbles:[], loadProgress:0, fishWiggle:0, bgBubbleTimer:0, coverAlpha:0, coverPhase:'none', coverT:0 };
+        msg(`Arrived: ${currentMap().name}`, W/2, 120, '#fff16a');
+      }
+    }
+
+  } else if(tr.phase === 'sinkIn'){
+    // Boat sinks, bubbles rise, screen goes black
+    tr.t += delta;
+
+    // Boat sinks and tilts
+    const sinkSpeed = 80 + tr.t * 90; // accelerates
+    tr.sinkBoatY = Math.min(300, tr.sinkBoatY + sinkSpeed * delta);
+    tr.sinkBoatAngle = Math.min(0.55, tr.sinkBoatAngle + 0.6 * delta);
+
+    // Spawn rising sink bubbles
+    if(Math.random() < delta * 22){
+      tr.sinkBubbles.push({
+        x: W/2 + rand(-160, 160),
+        y: 105 + tr.sinkBoatY + rand(-20, 40),
+        vx: rand(-28, 28),
+        vy: rand(-180, -80),
+        r: rand(5, 22),
+        alpha: 0.8 + Math.random() * 0.2,
+        wobble: Math.random() * Math.PI * 2,
+        life: 1,
+      });
+    }
+    // Update sink bubbles
+    for(let i = tr.sinkBubbles.length-1; i>=0; i--){
+      const b = tr.sinkBubbles[i];
+      b.y += b.vy * delta;
+      b.x += b.vx * delta + Math.sin(tr.t * 3 + b.wobble) * 18 * delta;
+      b.life -= delta * 0.35;
+      if(b.y < -30 || b.life <= 0) tr.sinkBubbles.splice(i, 1);
+    }
+
+    // Fade to black
+    if(tr.t > 1.4){
+      tr.sinkBlackAlpha = Math.min(1, (tr.t - 1.4) / 0.8);
+    }
+
+    if(tr.sinkBlackAlpha >= 1){
+      tr.phase = 'sinkBlack';
+      tr.t = 0;
+      // Redirect map to best safe map
+      const safeMap = bestMapForBoat();
+      tr.nextMap = safeMap.id;
+      game.map = safeMap.id;
+      _bgCacheMap = null;
+      spawnFish();
+      save();
+    }
+
+  } else if(tr.phase === 'sinkBlack'){
+    tr.t += delta;
+    tr.sinkBlackAlpha = 1;
+    if(tr.t > 1.0){
+      tr.phase = 'sinkReveal';
+      tr.t = 0;
+      // If local sink (boat swap), no sail-in needed — boat stays centered
+      if(!tr.sinkWasTraveling){
+        tr.boatX = 0;
+      } else {
+        tr.boatX = -W - 260;
+      }
+    }
+
+  } else if(tr.phase === 'sinkReveal'){
+    tr.t += delta;
+    tr.sinkBlackAlpha = Math.max(0, 1 - tr.t / 1.0);
+    if(tr.sinkWasTraveling) tr.boatX += 900 * delta;
+    const done = tr.sinkWasTraveling ? tr.boatX >= 0 : tr.sinkBlackAlpha <= 0;
+    if(done){
+      game.transition = { active:false, phase:'none', t:0, nextMap:null, boatX:0, bubbles:[], coverBubbles:[], loadProgress:0, fishWiggle:0, bgBubbleTimer:0, coverAlpha:0, coverPhase:'none', coverT:0, sinking:false, sinkBoatY:0, sinkBoatAngle:0, sinkBubbles:[], sinkBlackAlpha:0 };
+      const safeMap = currentMap();
+      msg(`🌊 Rescued! Drifted to ${safeMap.name}`, W/2, 120, '#74d7ff');
     }
   }
 }
@@ -4097,9 +4232,122 @@ function drawTransition(){
     ctx.fillText(`${Math.round(progress * 100)}%`, cw/2, barY + barH + barH * 0.85);
   }
 
+  // ── SINKING ANIMATION ──
+  if(tr.phase === 'sinkIn' || tr.phase === 'sinkBlack' || tr.phase === 'sinkReveal'){
+
+    // Dark water overlay
+    const sinkOverlay = tr.phase === 'sinkReveal'
+      ? Math.max(0, 1 - tr.t / 1.0) * 0.6
+      : Math.min(0.75, tr.t / 0.6);
+    if(sinkOverlay > 0){
+      const sinkGrad = ctx.createLinearGradient(0, 0, 0, ch);
+      sinkGrad.addColorStop(0, `rgba(0,20,40,${sinkOverlay})`);
+      sinkGrad.addColorStop(1, `rgba(0,5,20,${sinkOverlay * 1.3})`);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = sinkGrad;
+      ctx.fillRect(0, 0, cw, ch);
+    }
+
+    if(tr.phase === 'sinkIn'){
+      // Draw the sinking boat
+      ctx.save();
+      ctx.translate(cw/2, 105 + (tr.sinkBoatY || 0));
+      ctx.rotate(tr.sinkBoatAngle || 0);
+      ctx.globalAlpha = Math.max(0, 1 - (tr.sinkBoatY / 260));
+
+      // Draw simplified boat shape (matches current boat)
+      const boatId = game.boat || 'dinghy';
+      ctx.shadowColor = 'rgba(0,150,255,0.5)';
+      ctx.shadowBlur = 18;
+
+      if(boatId === 'dinghy'){
+        ctx.fillStyle = '#8b4513';
+        ctx.beginPath(); ctx.moveTo(-130,38); ctx.lineTo(130,38); ctx.lineTo(90,100); ctx.lineTo(-90,100); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#5c2f0e'; ctx.fillRect(-85,55,170,12);
+        ctx.fillStyle = '#3d2b1f'; ctx.fillRect(-5,-30,10,70);
+        ctx.fillStyle = '#ffdd59';
+        ctx.beginPath(); ctx.moveTo(7,-27); ctx.lineTo(60,0); ctx.lineTo(7,26); ctx.closePath(); ctx.fill();
+      } else if(boatId === 'sloop'){
+        ctx.fillStyle = '#8b4513';
+        ctx.beginPath(); ctx.moveTo(-170,35); ctx.lineTo(170,35); ctx.lineTo(115,105); ctx.lineTo(-115,105); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#5c2f0e'; ctx.fillRect(-110,55,220,18);
+        ctx.fillStyle = '#3d2b1f'; ctx.fillRect(-6,-85,12,70);
+        ctx.fillStyle = '#ffdd59';
+        ctx.beginPath(); ctx.moveTo(8,-82); ctx.lineTo(76,-48); ctx.lineTo(8,-18); ctx.closePath(); ctx.fill();
+      } else if(boatId === 'galleon'){
+        const hullGrad = ctx.createLinearGradient(0,32,0,112);
+        hullGrad.addColorStop(0,'#546e7a'); hullGrad.addColorStop(1,'#263238');
+        ctx.fillStyle = hullGrad;
+        ctx.beginPath(); ctx.moveTo(-220,32); ctx.lineTo(220,32); ctx.lineTo(158,112); ctx.lineTo(-158,112); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#263238';
+        ctx.fillRect(-5,-82,10,54);
+        ctx.fillStyle = '#cfd8dc';
+        ctx.beginPath(); ctx.moveTo(5,-80); ctx.lineTo(68,-52); ctx.lineTo(5,-28); ctx.closePath(); ctx.fill();
+      } else if(boatId === 'leviathan'){
+        const hullGrad = ctx.createLinearGradient(0,32,0,112);
+        hullGrad.addColorStop(0,'#d4a800'); hullGrad.addColorStop(1,'#5c3d00');
+        ctx.fillStyle = hullGrad;
+        ctx.beginPath(); ctx.moveTo(-220,32); ctx.lineTo(220,32); ctx.lineTo(158,112); ctx.lineTo(-158,112); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#4a2800';
+        ctx.fillRect(-5,-82,10,54);
+        const mainSail = ctx.createLinearGradient(5,-80,72,-28);
+        mainSail.addColorStop(0,'#fff9e6'); mainSail.addColorStop(1,'#f0d080');
+        ctx.fillStyle = mainSail;
+        ctx.beginPath(); ctx.moveTo(5,-80); ctx.lineTo(72,-52); ctx.lineTo(5,-28); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+
+      // Draw sinking bubbles — rising from around the boat
+      if(tr.sinkBubbles){
+        for(const b of tr.sinkBubbles){
+          if(b.life <= 0 || b.alpha <= 0) continue;
+          const ba = b.alpha * b.life * 0.85;
+          ctx.globalAlpha = ba;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+          ctx.strokeStyle = 'rgba(140,220,255,0.9)';
+          ctx.lineWidth = Math.max(1, b.r * 0.18);
+          ctx.stroke();
+          ctx.globalAlpha = ba * 0.3;
+          ctx.beginPath();
+          ctx.arc(b.x - b.r*0.28, b.y - b.r*0.28, b.r * 0.22, 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(220,245,255,0.95)';
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // Warning text
+      const warnAlpha = Math.min(1, tr.t / 0.5);
+      ctx.globalAlpha = warnAlpha;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(cw * 0.034)}px Georgia, serif`;
+      ctx.shadowColor = 'rgba(255,100,0,0.9)';
+      ctx.shadowBlur = 24;
+      ctx.fillStyle = '#ffcc44';
+      ctx.fillText('⚠  Your boat is sinking!  ⚠', cw/2, ch * 0.72);
+      ctx.shadowBlur = 0;
+      ctx.font = `italic ${Math.round(cw * 0.018)}px Georgia, serif`;
+      ctx.fillStyle = 'rgba(200,240,255,0.85)';
+      const safeMapName = bestMapForBoat().name;
+      ctx.fillText(`Drifting back to ${safeMapName}...`, cw/2, ch * 0.80);
+      ctx.globalAlpha = 1;
+    }
+
+    // Fade to / from black
+    if((tr.sinkBlackAlpha || 0) > 0){
+      ctx.globalAlpha = tr.sinkBlackAlpha;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.globalAlpha = 1;
+    }
+  }
+
   ctx.globalAlpha = 1;
   ctx.restore();
 }
+
 function drawHUD() {
 
   buttons = [];
@@ -4478,9 +4726,12 @@ function drawMapsPanel(){
       text(bbText, startX + 665, y + 74, 13, 'center', meetsBoat ? '#7bed9f' : '#fdcb6e');
     }
 
-    const canEnter = rodRankOk(m.id) && boatRankOk(m.id);
-    const label = active ? 'Equipped' : unlocked ? (canEnter ? 'Equip' : 'Can\'t Enter') : `Buy ${fmt(m.cost)}`;
-    const btnColor = active ? '#636e72' : (!canEnter && unlocked) ? '#ff4757' : '#00cec9';
+    const canEnterRod = rodRankOk(m.id);
+    const canEnterBoat = boatRankOk(m.id);
+    const canEnter = canEnterRod && canEnterBoat;
+    const willSink = canEnterRod && !canEnterBoat; // rod ok but boat too weak — can travel but will sink
+    const label = active ? 'Equipped' : unlocked ? (canEnter ? 'Equip' : (willSink ? '⚠ Sail' : 'Can\'t Enter')) : `Buy ${fmt(m.cost)}`;
+    const btnColor = active ? '#636e72' : willSink ? '#e67e22' : (!canEnter && unlocked) ? '#ff4757' : '#00cec9';
 
     addButton(
       startX + 880,
@@ -4498,33 +4749,30 @@ function drawMapsPanel(){
             return;
           }
         }
-        if(!canEnter && unlocked){
-          if(!rodRankOk(m.id)){
-            const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
-            msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
-          } else {
-            const bn = boatNeededFor(m.id).name;
-            msg(`Need ${bn} to sail here!`, W/2, 200, '#fdcb6e');
-          }
+        if(!canEnterRod && unlocked){
+          const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
+          msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
+          return;
+        }
+        if(willSink && unlocked){
+          // Allow travel, but will sink on arrival
+          changeMap(m.id, true);
+          save();
           return;
         }
         if(unlocked){
           changeMap(m.id);
           save();
         } else {
-          if(!canEnter){
-            if(!rodRankOk(m.id)){
-              const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
-              msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
-            } else {
-              const bn = boatNeededFor(m.id).name;
-              msg(`Need ${bn} to sail here!`, W/2, 200, '#fdcb6e');
-            }
+          if(!canEnterRod){
+            const rn = rods.find(r=>r.id===rodNeededFor(m.id))?.name || rodNeededFor(m.id);
+            msg(`Need ${rn} to fish here!`, W/2, 200, '#ff7675');
             return;
           }
           buy(m.cost, ()=>{
             game.unlockedMaps[m.id] = true;
-            changeMap(m.id);
+            // If boat is too weak, sail but sink
+            changeMap(m.id, !canEnterBoat);
             save();
           });
         }
@@ -4690,11 +4938,22 @@ function drawRodsPanel(){
       text(`Range: ${Math.round(b.rangeMultiplier * 100)}%`, barX + barW2 + 12, barY2 + 4, 13, 'left', '#7ed6df');
 
       // Buy / equip button
-      const label = active ? 'Sailing' : unlocked ? 'Sail' : `Buy ${fmt(b.cost)}`;
-      const btnCol = active ? '#636e72' : '#00cec9';
+      const newBoatRank = BOAT_RANK[b.id] || 0;
+      const currentMapBoatReq = MAP_BOAT_REQ[game.map] || 0;
+      const wouldSink = newBoatRank < currentMapBoatReq;
+      const label = active ? 'Sailing' : unlocked ? (wouldSink ? '⚠ Equip' : 'Equip') : `Buy ${fmt(b.cost)}`;
+      const btnCol = active ? '#636e72' : (wouldSink && unlocked) ? '#e67e22' : '#00cec9';
       addButton(1120, y + 28, 150, 44, label, () => {
-        if(unlocked){ game.boat = b.id; save(); }
-        else buy(b.cost, () => { game.unlockedBoats[b.id]=true; game.boat=b.id; save(); });
+        const equipBoat = () => {
+          game.boat = b.id;
+          save();
+          // If the newly equipped boat is too weak for the current map, trigger sinking
+          if(BOAT_RANK[b.id] < (MAP_BOAT_REQ[game.map] || 0)){
+            startSinking();
+          }
+        };
+        if(unlocked){ equipBoat(); }
+        else buy(b.cost, () => { game.unlockedBoats[b.id]=true; equipBoat(); });
       }, btnCol).draw(btnCol);
     });
   }
