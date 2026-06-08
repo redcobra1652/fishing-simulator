@@ -936,7 +936,7 @@ const boats = [
     id: 'dinghy',
     name: 'Wooden Dinghy',
     cost: 0,
-    rangeMultiplier: 0.6,
+    rangeMultiplier: 0.4,
     desc: 'A humble fishing dinghy. Limited harpoon reach.',
     color: '#8b4513',
     accent: '#5c2f0e',
@@ -945,7 +945,7 @@ const boats = [
     id: 'sloop',
     name: 'Reinforced Sloop',
     cost: 900,
-    rangeMultiplier: 0.72,
+    rangeMultiplier: 0.6,
     desc: '72% harpoon range. Sturdier hull for rougher waters.',
     color: '#607d8b',
     accent: '#37474f',
@@ -953,8 +953,8 @@ const boats = [
   {
     id: 'galleon',
     name: 'Iron Frigate',
-    cost: 8000,
-    rangeMultiplier: 0.86,
+    cost: 50000,
+    rangeMultiplier: 0.8,
     desc: '88% harpoon range. Heavy iron warship for deep seas.',
     color: '#c8a200',
     accent: '#7a5f00',
@@ -962,7 +962,7 @@ const boats = [
   {
     id: 'leviathan',
     name: 'Golden Galleon',
-    cost: 15000,
+    cost: 150000,
     rangeMultiplier: 1.00,
     desc: 'Full harpoon range. The finest vessel on the seas.',
     color: '#c8a200',
@@ -2261,7 +2261,7 @@ function updateHarpoon(dt){
   if(harpoon.status==='still'){
     // Mouse-controlled horizontal aiming. It still drops straight down when fired.
     const boatRange = currentBoat().rangeMultiplier;
-    const margin = Math.round(210 + (1 - boatRange) * (W/2 - 210));
+    const margin = Math.round(120 + (1 - boatRange) * (W/2 - 120));
     harpoon.x = clamp(game.mouseX, margin, W - margin);
     harpoon.tipX = harpoon.x; harpoon.tipY = sy;
     return;
