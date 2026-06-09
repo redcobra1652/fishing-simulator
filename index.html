@@ -920,7 +920,8 @@ const maps = [
   { id:'moon', name:'Moonlit Tide', cost:220000, mult:2.1, depth:'#151a40', sky1:'#8d9bff', sky2:'#06091f', fishBonus:8, rare:11, desc:'Night water with glowing moon fish.' },
   { id:'void', name:'Void Sea', cost:400000, mult:2.2, depth:'#090014', sky1:'#3b0a69', sky2:'#050008', fishBonus:8, rare:12, desc:'Dark reality-bending waters.' },
   { id:'heaven', name:'Skyfall Waters', cost:650000, mult:2.3, depth:'#8ee7ff', sky1:'#ffffff', sky2:'#76b6ff', fishBonus:9, rare:13, desc:'Floating ocean above the clouds.' },
-  { id:'galaxy', name:'Galaxy Ocean', cost:1000000, mult:2.5, depth:'#12003b', sky1:'#bb8cff', sky2:'#020010', fishBonus:10, rare:15, desc:'Final cosmic map with insane rewards.' }
+  { id:'galaxy', name:'Galaxy Ocean', cost:1000000, mult:2.5, depth:'#12003b', sky1:'#bb8cff', sky2:'#020010', fishBonus:10, rare:15, desc:'Cosmic map with galactic rewards.' },
+  { id:'forge', name:'Elemental Forge', cost:3500000, mult:3.0, depth:'#2a0a00', sky1:'#ff6600', sky2:'#1a0500', fishBonus:12, rare:18, desc:'A new dimension where elements collide.' }
 ];
 
 const rods = [
@@ -979,7 +980,8 @@ const MAP_ROD_REQ = {
   deep:0, lava:0, ice:1,
   mangrove:1, crystal:1, storm:1, jungle:2,
   toxic:2, desert:2, moon:3, void:3, heaven:3,
-  galaxy:4
+  galaxy:4,
+  forge:4
 };
 function rodRankOk(mapId){ return ROD_RANK[game.rod] >= (MAP_ROD_REQ[mapId]||0); }
 function rodNeededFor(mapId){
@@ -994,7 +996,8 @@ const MAP_BOAT_REQ = {
   bay:0, reef:0, deep:0, lava:1, ice:1,
   mangrove:1, crystal:1, storm:1, jungle:1,
   toxic:2, desert:2, moon:2,
-  void:3, heaven:3, galaxy:3
+  void:3, heaven:3, galaxy:3,
+  forge:3
 };
 function boatRankOk(mapId){ return BOAT_RANK[game.boat||'dinghy'] >= (MAP_BOAT_REQ[mapId]||0); }
 function boatNeededFor(mapId){
@@ -1131,7 +1134,16 @@ const fishTypesByMap = {
     { id:3, name:'Photon Shark', value:650, body:'#0984e3', fin:'#00cec9', chance:14, size:1.8, shape:'shark', pattern:'star', tail:'fork', glow:true },
     { id:4, name:'Galactic Sword', value:2500, body:'#e84393', fin:'#6c5ce7', chance:1.25, size:2, shape:'blade', pattern:'galaxy', tail:'dragon', glow:true },
     { id:5, name:'COSMIC PULSAR', value:12500, body:'#0a0a1a', fin:'#a29bfe', chance:0.25, size:2.35, shape:'serpent', pattern:'galaxy', tail:'serpent', glow:true }
-  ]
+  ],
+
+  forge: [
+    { id:1, name:'Cinder Sprite', value:200, body:'#ff4500', fin:'#ff8c00', chance:50, size:1, shape:'round', pattern:'lava', tail:'triangle', glow:true },
+    { id:2, name:'Magma Serpent', value:420, body:'#b22222', fin:'#ff6347', chance:29, size:1.4, shape:'eel', pattern:'crack', tail:'spike', glow:true },
+    { id:3, name:'Forge Titan', value:900, body:'#2f0000', fin:'#ff4500', chance:13, size:1.75, shape:'spiky', pattern:'lava', tail:'leviathan', glow:true },
+    { id:4, name:'Elemental Chimera', value:4000, body:'#1a0000', fin:'#00aaff', chance:1.0, size:2.1, shape:'chimera', pattern:'bolt', tail:'chimera', glow:true },
+    { id:5, name:'PRIMORDIAL PHOENIX', value:20000, body:'#ff0000', fin:'#ffff00', chance:0.2, size:2.5, shape:'phoenix', pattern:'lava', tail:'phoenix', glow:true }
+  ],
+
 };
 
 function chooseVariant(typeId){
@@ -1189,7 +1201,7 @@ function save(){
     console.warn("Save failed: Storage might be full or private.");
   }
 }
-function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; game.mapBaitActive=false; game.mutationBaitActive=false; game._baitTimers={}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(!game.boat) game.boat='dinghy'; if(!game.unlockedBoats) game.unlockedBoats={dinghy:true}; if(!game.gearTab) game.gearTab='harpoons'; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; game.mapBaitActive=false; game.mutationBaitActive=false; game._baitTimers={}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(!game.boat) game.boat='dinghy'; if(!game.unlockedBoats) game.unlockedBoats={dinghy:true}; if(!game.gearTab) game.gearTab='harpoons'; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); if(!maps.find(m=>m.id===game.map)) game.map='forge'; }catch(e){} }
 function reset(){ localStorage.removeItem('fishingEmpireSave'); location.reload(); }
 function currentMap(){ return maps.find(m=>m.id===game.map); }
 function currentRod(){ return rods.find(r=>r.id===game.rod); }
@@ -1432,12 +1444,51 @@ function traceFishBody(shape, w, h){
     ctx.quadraticCurveTo(-w*0.72, 0, -w*0.58, -h*0.12);
     ctx.closePath();
 
-  } 
-  
   // =========================
   // REWORKED MONSTER BODIES
   // =========================
-  else if(shape === 'serpent'){
+  }else if(shape === 'chimera'){
+    // Chimera: lion-body front, with a serpent neck rising from top, goat horn protrusion
+    // Main beast torso — stocky and wide
+    ctx.moveTo(-w*0.58, 0);
+    ctx.bezierCurveTo(-w*0.48, -h*0.32, -w*0.1, -h*0.42, w*0.18, -h*0.28);
+    // Primary lion head protruding forward
+    ctx.quadraticCurveTo(w*0.44, -h*0.18, w*0.66, -h*0.08);
+    ctx.quadraticCurveTo(w*0.76, 0, w*0.66, h*0.08);
+    ctx.quadraticCurveTo(w*0.44, h*0.18, w*0.18, h*0.28);
+    ctx.bezierCurveTo(-w*0.1, h*0.42, -w*0.48, h*0.32, -w*0.58, 0);
+    ctx.closePath();
+    // Serpent neck rising from back — second path drawn as a bump
+    ctx.moveTo(-w*0.2, -h*0.3);
+    ctx.quadraticCurveTo(-w*0.08, -h*0.74, w*0.05, -h*0.58);
+    ctx.quadraticCurveTo(w*0.14, -h*0.42, w*0.02, -h*0.28);
+    ctx.closePath();
+    // Goat head bump (smaller, mid-top)
+    ctx.moveTo(w*0.08, -h*0.26);
+    ctx.quadraticCurveTo(w*0.18, -h*0.58, w*0.32, -h*0.44);
+    ctx.quadraticCurveTo(w*0.42, -h*0.3, w*0.26, -h*0.2);
+    ctx.closePath();
+
+  }else if(shape === 'phoenix'){
+    // Phoenix: bird-fish with swept-back wings and proud chest
+    // Main body — streamlined like a bird in flight
+    ctx.moveTo(-w*0.52, 0);
+    ctx.bezierCurveTo(-w*0.38, -h*0.14, w*0.12, -h*0.22, w*0.52, -h*0.08);
+    ctx.quadraticCurveTo(w*0.68, 0, w*0.52, h*0.08);
+    ctx.bezierCurveTo(w*0.12, h*0.22, -w*0.38, h*0.14, -w*0.52, 0);
+    ctx.closePath();
+    // Upper wing sweep — large arching wing
+    ctx.moveTo(-w*0.2, -h*0.1);
+    ctx.bezierCurveTo(-w*0.05, -h*0.62, w*0.32, -h*0.7, w*0.44, -h*0.28);
+    ctx.quadraticCurveTo(w*0.28, -h*0.18, w*0.0, -h*0.14);
+    ctx.closePath();
+    // Lower wing sweep — mirror
+    ctx.moveTo(-w*0.2, h*0.1);
+    ctx.bezierCurveTo(-w*0.05, h*0.62, w*0.32, h*0.7, w*0.44, h*0.28);
+    ctx.quadraticCurveTo(w*0.28, h*0.18, w*0.0, h*0.14);
+    ctx.closePath();
+
+  }else if(shape === 'serpent'){
     // Long sea serpent — smooth snake body
     ctx.moveTo(-w*0.62, -h*0.04);
 
@@ -1739,6 +1790,40 @@ function drawTailShape(tail, w, h, color){
     ctx.lineTo(-w*0.82, h*0.28);
 
     ctx.closePath();
+
+  }else if(tail === 'chimera'){
+    // Chimera tail: serpent-tail with a secondary barb/spike branching off
+    // Main serpent whip
+    ctx.moveTo(-w*0.44, 0);
+    ctx.quadraticCurveTo(-w*0.68, h*0.08, -w*0.9, h*0.18);
+    ctx.lineWidth = 6; ctx.strokeStyle = color; ctx.stroke();
+    ctx.beginPath();
+    // Venomous barb branching upward from mid-tail
+    ctx.moveTo(-w*0.66, 0.04*h);
+    ctx.lineTo(-w*0.92, -h*0.28);
+    ctx.lineWidth = 5; ctx.strokeStyle = color; ctx.stroke();
+    ctx.beginPath();
+    // Arrowhead tip on barb
+    ctx.moveTo(-w*0.92, -h*0.28);
+    ctx.lineTo(-w*0.84, -h*0.18);
+    ctx.lineTo(-w*1.0, -h*0.22);
+    ctx.closePath();
+
+  }else if(tail === 'phoenix'){
+    // Phoenix tail: wide flame-fan spread like a peacock/tail feather burst
+    // Five flame streaks fanning out
+    const flameAngles = [-0.55, -0.27, 0, 0.27, 0.55];
+    for(let fi = 0; fi < flameAngles.length; fi++){
+      const fa = flameAngles[fi];
+      const fl = 0.7 + Math.abs(fi - 2) * 0.06; // outer feathers slightly shorter
+      ctx.moveTo(-w*0.46, 0);
+      ctx.quadraticCurveTo(
+        -w*0.68 + Math.sin(fa)*w*0.08, Math.sin(fa)*h*0.3,
+        -w*fl + Math.sin(fa)*w*0.18, Math.sin(fa)*h*0.48
+      );
+    }
+    ctx.lineWidth = 4; ctx.strokeStyle = color; ctx.stroke();
+    return;
 
   }else if(tail === 'wyrm'){
     ctx.moveTo(-w*0.45, 0);
@@ -3437,6 +3522,204 @@ function drawBackground(dt){
     ctx.restore();
   }
 
+  // ── ELEMENTAL FORGE ──────────────────────────────────────────────────────
+  if(map.id==='forge'){
+    const cache = getBgCache('forge');
+    const cc = cache.getContext('2d');
+    if(_bgCacheMap==='forge' && cache._ready){
+      ctx.drawImage(cache,0,0);
+    } else {
+      // Ash ground shelf
+      const ashG = cc.createLinearGradient(0,185,0,H);
+      ashG.addColorStop(0,'rgba(60,20,10,.95)'); ashG.addColorStop(1,'rgba(20,5,0,1)');
+      cc.fillStyle=ashG; cc.fillRect(0,185,W,H-185);
+      // Jagged volcanic rock formations
+      cc.fillStyle='rgba(30,8,0,.98)';
+      const rocksL=[{x:0,pts:[0,235,55,180,90,162,130,185,180,195,220,175,260,192,310,185,380,210,420,H]},
+                    {x:0,pts:[1100,H,1120,198,1165,172,1220,155,1285,168,1340,145,1400,162,1455,150,1510,168,1510,H]}];
+      for(const r of rocksL){
+        cc.beginPath(); cc.moveTo(r.pts[0],r.pts[1]);
+        for(let i=2;i<r.pts.length;i+=2) cc.lineTo(r.pts[i],r.pts[i+1]);
+        cc.closePath(); cc.fill();
+      }
+      // Lava rivers flowing down rock faces
+      for(let i=0;i<6;i++){
+        const lx=55+i*240;
+        const lg=cc.createLinearGradient(lx,100,lx,210);
+        lg.addColorStop(0,'rgba(255,120,0,.9)'); lg.addColorStop(0.5,'rgba(255,60,0,.7)'); lg.addColorStop(1,'rgba(200,30,0,.1)');
+        cc.fillStyle=lg; cc.fillRect(lx-4,100,9,115);
+      }
+      // Glowing cracked earth seams
+      cc.strokeStyle='rgba(255,100,0,.6)'; cc.lineWidth=2;
+      for(let i=0;i<8;i++){
+        const sx=80+i*185, sy=210;
+        cc.beginPath(); cc.moveTo(sx,sy); cc.lineTo(sx-20,sy+25); cc.lineTo(sx+10,sy+40); cc.lineTo(sx-5,sy+60); cc.stroke();
+      }
+      cache._ready=true; ctx.drawImage(cache,0,0);
+    }
+
+    // Animated lava pools — pulsing orange circles
+    for(let i=0;i<5;i++){
+      const lx=120+i*280, ly=220;
+      const pulse2=0.6+Math.sin(T*1.4+i*1.2)*0.4;
+      const lpg=ctx.createRadialGradient(lx,ly,0,lx,ly,32+i*4);
+      lpg.addColorStop(0,`rgba(255,200,0,${pulse2})`); lpg.addColorStop(0.4,`rgba(255,80,0,${pulse2*0.7})`); lpg.addColorStop(1,'rgba(200,20,0,0)');
+      ctx.fillStyle=lpg; ctx.beginPath(); ctx.arc(lx,ly,32+i*4,0,Math.PI*2); ctx.fill();
+    }
+    // Floating embers
+    for(let i=0;i<24;i++){
+      const ex=((i*317+T*22*(i%3===0?1.5:0.8))%W+W)%W;
+      const ey=200-((T*18*(1+i*0.08))%(220));
+      const ea=0.4+Math.sin(T*2.2+i*1.8)*0.35;
+      ctx.globalAlpha=ea; ctx.fillStyle=i%3===0?'#ffaa00':'#ff4400';
+      ctx.beginPath(); ctx.arc(ex,ey,1.5+i%3,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // Central forging anvil silhouette (landmark)
+    const ax=W/2, ay=162;
+    ctx.fillStyle='rgba(15,5,0,.95)';
+    ctx.beginPath(); ctx.moveTo(ax-38,ay+30); ctx.lineTo(ax-50,ay+48); ctx.lineTo(ax+50,ay+48); ctx.lineTo(ax+38,ay+30);
+    ctx.lineTo(ax+42,ay+18); ctx.lineTo(ax+20,ay); ctx.lineTo(ax-20,ay); ctx.lineTo(ax-42,ay+18); ctx.closePath(); ctx.fill();
+    // Anvil glow ring
+    const ang2=ctx.createRadialGradient(ax,ay+24,0,ax,ay+24,55);
+    ang2.addColorStop(0,'rgba(255,160,20,.35)'); ang2.addColorStop(1,'rgba(255,80,0,0)');
+    ctx.fillStyle=ang2; ctx.beginPath(); ctx.arc(ax,ay+24,55,0,Math.PI*2); ctx.fill();
+    // Dual elemental orbs flanking the anvil
+    const orbColors=[['#00aaff','#0044cc'],['#ff4400','#cc1100']];
+    const orbX=[ax-200,ax+200];
+    for(let o=0;o<2;o++){
+      const ot=(T*0.9+o*Math.PI)%(Math.PI*2);
+      const oy2=ay+8+Math.sin(ot)*12;
+      const og2=ctx.createRadialGradient(orbX[o],oy2,0,orbX[o],oy2,22);
+      og2.addColorStop(0,orbColors[o][0]); og2.addColorStop(0.6,orbColors[o][1]); og2.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=og2; ctx.beginPath(); ctx.arc(orbX[o],oy2,22,0,Math.PI*2); ctx.fill();
+    }
+    // Lightning arc between orbs (animated)
+    const arcPhase=Math.sin(T*3.5);
+    if(arcPhase>0.6){
+      const arcAlpha=(arcPhase-0.6)/0.4;
+      ctx.save(); ctx.globalAlpha=arcAlpha*0.85;
+      ctx.strokeStyle='rgba(220,200,255,1)'; ctx.lineWidth=2.5;
+      ctx.shadowColor='rgba(180,180,255,.9)'; ctx.shadowBlur=12;
+      ctx.beginPath();
+      ctx.moveTo(orbX[0],ay+8);
+      ctx.bezierCurveTo(orbX[0]+80,ay-30,orbX[1]-80,ay-30,orbX[1],ay+8);
+      ctx.stroke(); ctx.restore();
+    }
+
+    // ── Swinging hammer ropes ──
+    // Two pivot points above the anvil — left and right
+    const hammerPivotY = 40; // pivot high above
+    const pivotL = ax - 260;
+    const pivotR = ax + 260;
+    const ropeLen = 145;
+
+    // Left hammer swings right-to-center (phase offset 0)
+    // Right hammer swings left-to-center (phase offset π)
+    // swing: -1 = fully out, +1 = center
+    const swingPeriod = 1.4; // seconds per full swing
+    // Use a pendulum-like (cosine) so it accelerates into center
+    const swingL = -Math.cos(T * Math.PI / swingPeriod);            // -1..+1
+    const swingR =  Math.cos(T * Math.PI / swingPeriod);            // mirror
+
+    const maxAngleL = 0.65; // radians outward (left rope swings rightward)
+    const maxAngleR = 0.65;
+
+    // Left rope: pivot at (pivotL, hammerPivotY), swings toward center (+angle = rightward)
+    const angleL = -maxAngleL + swingL * maxAngleL;  // from -maxAngle to 0 (at center)
+    const hamLX = pivotL + Math.sin(angleL) * ropeLen;
+    const hamLY = hammerPivotY + Math.cos(angleL) * ropeLen;
+
+    // Right rope: pivot at (pivotR, hammerPivotY), swings toward center (-angle = leftward)
+    const angleR = maxAngleR - swingR * maxAngleR;
+    const hamRX = pivotR + Math.sin(angleR) * ropeLen;
+    const hamRY = hammerPivotY + Math.cos(angleR) * ropeLen;
+
+    // Detect near-center impact for spark burst
+    const impactZone = Math.abs(swingL - 1) < 0.08;
+
+    // Draw left rope
+    ctx.save();
+    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 5;
+    ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.moveTo(pivotL, hammerPivotY); ctx.lineTo(hamLX, hamLY); ctx.stroke();
+    // Left hammer head
+    ctx.save();
+    ctx.translate(hamLX, hamLY);
+    ctx.rotate(angleL + Math.PI * 0.5);
+    // Hammer handle stub
+    ctx.fillStyle = '#5a3a0a'; ctx.fillRect(-5, -24, 10, 24);
+    // Hammer head (iron block)
+    const hamHG = ctx.createLinearGradient(-18, 0, 18, 20);
+    hamHG.addColorStop(0, '#aab0bb'); hamHG.addColorStop(0.5, '#d0d8e0'); hamHG.addColorStop(1, '#606870');
+    ctx.fillStyle = hamHG;
+    ctx.beginPath(); ctx.roundRect(-18, 0, 36, 22, 4); ctx.fill();
+    ctx.strokeStyle = '#44505a'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+
+    // Draw right rope
+    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(pivotR, hammerPivotY); ctx.lineTo(hamRX, hamRY); ctx.stroke();
+    // Right hammer head
+    ctx.save();
+    ctx.translate(hamRX, hamRY);
+    ctx.rotate(angleR - Math.PI * 0.5);
+    ctx.fillStyle = '#5a3a0a'; ctx.fillRect(-5, -24, 10, 24);
+    const hamHG2 = ctx.createLinearGradient(-18, 0, 18, 20);
+    hamHG2.addColorStop(0, '#aab0bb'); hamHG2.addColorStop(0.5, '#d0d8e0'); hamHG2.addColorStop(1, '#606870');
+    ctx.fillStyle = hamHG2;
+    ctx.beginPath(); ctx.roundRect(-18, 0, 36, 22, 4); ctx.fill();
+    ctx.strokeStyle = '#44505a'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+
+    // Lightning bolt on the anvil (being forged)
+    ctx.save();
+    ctx.shadowColor = '#ffe040'; ctx.shadowBlur = 18;
+    ctx.strokeStyle = '#fff176'; ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(ax - 10, ay - 2);
+    ctx.lineTo(ax + 3,  ay + 10);
+    ctx.lineTo(ax - 4,  ay + 10);
+    ctx.lineTo(ax + 10, ay + 24);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(ax - 10, ay - 2);
+    ctx.lineTo(ax + 3,  ay + 10);
+    ctx.lineTo(ax - 4,  ay + 10);
+    ctx.lineTo(ax + 10, ay + 24);
+    ctx.stroke();
+    ctx.restore();
+
+    // Impact sparks when hammers reach center
+    if(impactZone){
+      ctx.save();
+      const sparkCount = 12;
+      for(let s = 0; s < sparkCount; s++){
+        const sa = (s / sparkCount) * Math.PI * 2;
+        const sd = 18 + (s % 3) * 12;
+        const sFlicker = Math.abs(Math.sin(T * 22 + s));
+        ctx.globalAlpha = sFlicker * 0.9;
+        ctx.strokeStyle = s % 2 === 0 ? '#ffe040' : '#ffffff';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay + 12);
+        ctx.lineTo(ax + Math.cos(sa) * sd, ay + 12 + Math.sin(sa) * sd);
+        ctx.stroke();
+      }
+      // Central bright flash
+      ctx.globalAlpha = Math.abs(Math.sin(T * 22)) * 0.7;
+      const flashG = ctx.createRadialGradient(ax, ay + 12, 0, ax, ay + 12, 28);
+      flashG.addColorStop(0, 'rgba(255,255,220,1)');
+      flashG.addColorStop(0.4, 'rgba(255,200,0,.6)');
+      flashG.addColorStop(1, 'rgba(255,120,0,0)');
+      ctx.fillStyle = flashG;
+      ctx.beginPath(); ctx.arc(ax, ay + 12, 28, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   // ── PER-MAP WAVE COLORS ───────────────────────────────────────────────────
   const wc={
     bay:     ['#b8e8fa','#5db8e8','#2178c4','#0d4a96'],
@@ -3454,6 +3737,7 @@ function drawBackground(dt){
     void:    ['#2a0858','#180438','#0c0225','#060015'],
     heaven:  ['#a8e8ff','#70c8f8','#3898e0','#1868c0'],
     galaxy:  ['#1a0848','#100530','#080220','#040112'],
+    forge:   ['#cc3300','#881500','#500a00','#280500'],
   }[map.id] || ['#a8dff5','#3fa8e0','#1a6db5','#0a3d80'];
 
   drawWater(210,wc[0],16,1);
