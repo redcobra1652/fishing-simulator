@@ -2529,12 +2529,12 @@ window.addEventListener('touchstart', () => { _isMobile = true; }, { once: false
 
 const tutorialSteps = [
   // 0: Move / aim
-  { get text(){ return _isMobile ? 'Welcome! Touch and drag left or right to aim your harpoon.' : 'Welcome! Move your mouse/arrow keys left and right to aim your harpoon.'; },
+  { get text(){ return _isMobile ? 'Welcome! Touch and drag left or right to aim your harpoon.' : 'Welcome! Move mouse/click arrows left and right to aim your harpoon.'; },
     get icon(){ return _isMobile ? '👆' : '🎯'; },
     get action(){ return _isMobile ? 'Drag left/right to aim' : 'Move your mouse left/right'; },
     highlight:null },
   // 1: Fire harpoon
-  { get text(){ return _isMobile ? 'Lift your finger to drop the harpoon into the water.' : 'Click or press SPACE/Down to drop the harpoon into the water.'; },
+  { get text(){ return _isMobile ? 'Lift your finger to drop the harpoon into the water.' : 'Click or press SPACE/down arrow to drop the harpoon into the water.'; },
     get icon(){ return _isMobile ? '☝️' : '🖱️'; },
     get action(){ return _isMobile ? 'Lift finger to fire' : 'Click or press SPACE'; },
     highlight:null },
@@ -5645,7 +5645,7 @@ function drawCollectionPanel(){
     contentH += Math.ceil(grouped[id].length / 3) * (cardH + gap);
   }
 
-  const maxScroll = Math.max(0, contentH - panelH + 750);
+  const maxScroll = Math.max(0, contentH - panelH + 1200);
   game.collectionScroll = clamp(game.collectionScroll || 0, 0, maxScroll);
 
   ctx.save();
@@ -6017,27 +6017,27 @@ canvas.addEventListener('touchend', e => {
   const t0 = e.changedTouches[0];
   const p  = touchPos(t0);
 
-  // Panel open — simulate button click
-  if(game.panel){
-    for(let i = buttons.length - 1; i >= 0; i--){
-      if(buttons[i].hit(p.x, p.y)){
-        SFX.buttonClick();
-        buttons[i].fn({ _sliderX: p.x, _sliderY: p.y });
-        _touchAiming = false;
-        _touchId = null;
-        return;
-      }
+  // Always check buttons first — covers MENU, hide/show, panel buttons, etc.
+  for(let i = buttons.length - 1; i >= 0; i--){
+    if(buttons[i].hit(p.x, p.y)){
+      SFX.buttonClick();
+      buttons[i].fn({ _sliderX: p.x, _sliderY: p.y });
+      _touchAiming = false;
+      _touchId = null;
+      return;
     }
-    _touchAiming = false;
-    _touchId = null;
-    return;
   }
 
+  // No button hit — if we were aiming, fire
   if(_touchAiming && t0.identifier === _touchId){
     _touchAiming = false;
     _touchId = null;
-    launch(); // release finger = fire
+    launch();
+    return;
   }
+
+  _touchAiming = false;
+  _touchId = null;
 }, { passive: false });
 
 canvas.addEventListener('touchcancel', () => {
@@ -6045,6 +6045,23 @@ canvas.addEventListener('touchcancel', () => {
   _touchId = null;
   _sliderDragging = false;
 }, { passive: true });
+
+// Touch scroll for maps and collection panels
+let _scrollTouchY = null;
+canvas.addEventListener('touchstart', e => {
+  if(game.panel === 'maps' || game.panel === 'collection'){
+    _scrollTouchY = e.touches[0].clientY;
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  if((game.panel === 'maps' || game.panel === 'collection') && _scrollTouchY !== null){
+    const dy = (_scrollTouchY - e.touches[0].clientY) * (H / canvas.getBoundingClientRect().height);
+    if(game.panel === 'maps') game.mapScroll = (game.mapScroll || 0) + dy;
+    if(game.panel === 'collection') game.collectionScroll = (game.collectionScroll || 0) + dy;
+    _scrollTouchY = e.touches[0].clientY;
+  }
+}, { passive: true });
+canvas.addEventListener('touchend', () => { _scrollTouchY = null; }, { passive: true });
 
 canvas.addEventListener('wheel', e=>{
   if(game.panel !== 'maps' && game.panel !== 'collection') return;
