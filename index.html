@@ -1137,10 +1137,10 @@ const fishTypesByMap = {
   ],
 
   forge: [
-    { id:1, name:'Cinder Sprite', value:200, body:'#ff4500', fin:'#ff8c00', chance:50, size:1, shape:'round', pattern:'lava', tail:'triangle', glow:true },
-    { id:2, name:'Magma Serpent', value:420, body:'#b22222', fin:'#ff6347', chance:29, size:1.4, shape:'eel', pattern:'crack', tail:'spike', glow:true },
-    { id:3, name:'Forge Titan', value:900, body:'#2f0000', fin:'#ff4500', chance:13, size:1.75, shape:'spiky', pattern:'lava', tail:'leviathan', glow:true },
-    { id:4, name:'Elemental Chimera', value:4000, body:'#1a0000', fin:'#00aaff', chance:1.0, size:2.1, shape:'chimera', pattern:'bolt', tail:'chimera', glow:true },
+    { id:1, name:'Cinder Sprite', value:200, body:'#ff4500', fin:'#ff8c00', chance:50, size:1, shape:'cinder', pattern:'lava', tail:'triangle', glow:true },
+    { id:2, name:'Lava Eel', value:420, body:'#b22222', fin:'#ff6347', chance:29, size:1.4, shape:'molten', pattern:'crack', tail:'spike', glow:true },
+    { id:3, name:'Forge Titan', value:900, body:'#2f0000', fin:'#ff4500', chance:13, size:1.75, shape:'titan', pattern:'lava', tail:'leviathan', glow:true },
+    { id:4, name:'Elemental Marlin', value:4000, body:'#1a0000', fin:'#00aaff', chance:1.0, size:2.1, shape:'chimera', pattern:'bolt', tail:'chimera', glow:true },
     { id:5, name:'PRIMORDIAL PHOENIX', value:20000, body:'#ff0000', fin:'#ffff00', chance:0.2, size:2.5, shape:'phoenix', pattern:'lava', tail:'phoenix', glow:true }
   ],
 
@@ -1448,44 +1448,40 @@ function traceFishBody(shape, w, h){
   // REWORKED MONSTER BODIES
   // =========================
   }else if(shape === 'chimera'){
-    // Chimera: lion-body front, with a serpent neck rising from top, goat horn protrusion
-    // Main beast torso — stocky and wide
-    ctx.moveTo(-w*0.58, 0);
-    ctx.bezierCurveTo(-w*0.48, -h*0.32, -w*0.1, -h*0.42, w*0.18, -h*0.28);
-    // Primary lion head protruding forward
-    ctx.quadraticCurveTo(w*0.44, -h*0.18, w*0.66, -h*0.08);
-    ctx.quadraticCurveTo(w*0.76, 0, w*0.66, h*0.08);
-    ctx.quadraticCurveTo(w*0.44, h*0.18, w*0.18, h*0.28);
-    ctx.bezierCurveTo(-w*0.1, h*0.42, -w*0.48, h*0.32, -w*0.58, 0);
+    // Elemental Marlin: sleek torpedo body with long beak + tall sailfin ridge
+    // Main body — tapered, fast, powerful
+    ctx.moveTo(-w*0.52, 0);
+    ctx.bezierCurveTo(-w*0.36, -h*0.26, w*0.1, -h*0.32, w*0.44, -h*0.10);
+    // Beak — snout narrows into a long spike
+    ctx.lineTo(w*0.68, -h*0.04);
+    ctx.lineTo(w*0.98, 0);
+    ctx.lineTo(w*0.68, h*0.04);
+    ctx.lineTo(w*0.44, h*0.10);
+    ctx.bezierCurveTo(w*0.1, h*0.32, -w*0.36, h*0.26, -w*0.52, 0);
     ctx.closePath();
-    // Serpent neck rising from back — second path drawn as a bump
-    ctx.moveTo(-w*0.2, -h*0.3);
-    ctx.quadraticCurveTo(-w*0.08, -h*0.74, w*0.05, -h*0.58);
-    ctx.quadraticCurveTo(w*0.14, -h*0.42, w*0.02, -h*0.28);
-    ctx.closePath();
-    // Goat head bump (smaller, mid-top)
-    ctx.moveTo(w*0.08, -h*0.26);
-    ctx.quadraticCurveTo(w*0.18, -h*0.58, w*0.32, -h*0.44);
-    ctx.quadraticCurveTo(w*0.42, -h*0.3, w*0.26, -h*0.2);
+    // Tall dorsal sailfin sweeping back along the top
+    ctx.moveTo(w*0.38, -h*0.10);
+    ctx.bezierCurveTo(w*0.22, -h*0.72, -w*0.08, -h*0.82, -w*0.28, -h*0.52);
+    ctx.quadraticCurveTo(-w*0.18, -h*0.28, w*0.06, -h*0.22);
     ctx.closePath();
 
   }else if(shape === 'phoenix'){
-    // Phoenix: bird-fish with swept-back wings and proud chest
+    // Phoenix: bird-fish with large swept-back wings trailing behind
     // Main body — streamlined like a bird in flight
     ctx.moveTo(-w*0.52, 0);
     ctx.bezierCurveTo(-w*0.38, -h*0.14, w*0.12, -h*0.22, w*0.52, -h*0.08);
     ctx.quadraticCurveTo(w*0.68, 0, w*0.52, h*0.08);
     ctx.bezierCurveTo(w*0.12, h*0.22, -w*0.38, h*0.14, -w*0.52, 0);
     ctx.closePath();
-    // Upper wing sweep — large arching wing
-    ctx.moveTo(-w*0.2, -h*0.1);
-    ctx.bezierCurveTo(-w*0.05, -h*0.62, w*0.32, -h*0.7, w*0.44, -h*0.28);
-    ctx.quadraticCurveTo(w*0.28, -h*0.18, w*0.0, -h*0.14);
+    // Upper wing — large, sweeps far back toward the tail
+    ctx.moveTo(w*0.14, -h*0.12);
+    ctx.bezierCurveTo(w*0.04, -h*0.62, -w*0.36, -h*0.88, -w*0.58, -h*0.46);
+    ctx.quadraticCurveTo(-w*0.38, -h*0.22, -w*0.08, -h*0.10);
     ctx.closePath();
-    // Lower wing sweep — mirror
-    ctx.moveTo(-w*0.2, h*0.1);
-    ctx.bezierCurveTo(-w*0.05, h*0.62, w*0.32, h*0.7, w*0.44, h*0.28);
-    ctx.quadraticCurveTo(w*0.28, h*0.18, w*0.0, h*0.14);
+    // Lower wing — mirror, equally large
+    ctx.moveTo(w*0.14, h*0.12);
+    ctx.bezierCurveTo(w*0.04, h*0.62, -w*0.36, h*0.88, -w*0.58, h*0.46);
+    ctx.quadraticCurveTo(-w*0.38, h*0.22, -w*0.08, h*0.10);
     ctx.closePath();
 
   }else if(shape === 'serpent'){
@@ -1643,6 +1639,47 @@ function traceFishBody(shape, w, h){
       -w*0.56, 0,
       -w*0.42, -h*0.22
     );
+  }else if(shape === 'cinder'){
+    // Cinder Sprite: teardrop body with a notched back edge — like a glowing ember
+    ctx.moveTo(-w*0.46, 0);
+    ctx.quadraticCurveTo(-w*0.28, -h*0.44, w*0.18, -h*0.32);
+    ctx.bezierCurveTo(w*0.42, -h*0.18, w*0.58, -h*0.06, w*0.6, 0);
+    ctx.bezierCurveTo(w*0.58, h*0.06, w*0.42, h*0.18, w*0.18, h*0.32);
+    ctx.quadraticCurveTo(-w*0.28, h*0.44, -w*0.46, 0);
+    ctx.closePath();
+    // Notch on the back
+    ctx.moveTo(-w*0.46, -h*0.06);
+    ctx.lineTo(-w*0.62, 0);
+    ctx.lineTo(-w*0.46, h*0.06);
+    ctx.closePath();
+
+  }else if(shape === 'molten'){
+    // Magma Serpent: wide-bellied sinuous body, thick in the middle, tapered both ends
+    ctx.moveTo(-w*0.60, 0);
+    ctx.quadraticCurveTo(-w*0.38, -h*0.14, -w*0.08, -h*0.36);
+    ctx.bezierCurveTo(w*0.18, -h*0.48, w*0.42, -h*0.32, w*0.58, -h*0.06);
+    ctx.lineTo(w*0.66, 0);
+    ctx.lineTo(w*0.58, h*0.06);
+    ctx.bezierCurveTo(w*0.42, h*0.32, w*0.18, h*0.48, -w*0.08, h*0.36);
+    ctx.quadraticCurveTo(-w*0.38, h*0.14, -w*0.60, 0);
+    ctx.closePath();
+
+  }else if(shape === 'titan'){
+    // Forge Titan: armored angular box-body with shoulder spurs — like a warhammer
+    ctx.moveTo(-w*0.54, -h*0.06);
+    ctx.lineTo(-w*0.32, -h*0.44);
+    ctx.lineTo(w*0.08, -h*0.48);
+    ctx.lineTo(w*0.42, -h*0.30);
+    ctx.lineTo(w*0.64, -h*0.08);
+    ctx.lineTo(w*0.72, 0);
+    ctx.lineTo(w*0.64, h*0.08);
+    ctx.lineTo(w*0.42, h*0.30);
+    ctx.lineTo(w*0.08, h*0.48);
+    ctx.lineTo(-w*0.32, h*0.44);
+    ctx.lineTo(-w*0.54, h*0.06);
+    ctx.quadraticCurveTo(-w*0.66, 0, -w*0.54, -h*0.06);
+    ctx.closePath();
+
     } else{
       ctx.ellipse(0, 0, w*0.45, h*0.42, 0, 0, Math.PI*2);
     }
@@ -1792,34 +1829,39 @@ function drawTailShape(tail, w, h, color){
     ctx.closePath();
 
   }else if(tail === 'chimera'){
-    // Chimera tail: serpent-tail with a secondary barb/spike branching off
-    // Main serpent whip
-    ctx.moveTo(-w*0.44, 0);
-    ctx.quadraticCurveTo(-w*0.68, h*0.08, -w*0.9, h*0.18);
-    ctx.lineWidth = 6; ctx.strokeStyle = color; ctx.stroke();
-    ctx.beginPath();
-    // Venomous barb branching upward from mid-tail
-    ctx.moveTo(-w*0.66, 0.04*h);
-    ctx.lineTo(-w*0.92, -h*0.28);
-    ctx.lineWidth = 5; ctx.strokeStyle = color; ctx.stroke();
-    ctx.beginPath();
-    // Arrowhead tip on barb
-    ctx.moveTo(-w*0.92, -h*0.28);
-    ctx.lineTo(-w*0.84, -h*0.18);
-    ctx.lineTo(-w*1.0, -h*0.22);
+    // Chimera tail: trident-crown — three distinct prongs fanning from a common root
+    // Outer upper prong — sweeps up and back
+    ctx.moveTo(-w*0.46, -h*0.04);
+    ctx.quadraticCurveTo(-w*0.68, -h*0.22, -w*0.88, -h*0.44);
+    ctx.lineTo(-w*0.96, -h*0.38);
+    ctx.quadraticCurveTo(-w*0.76, -h*0.18, -w*0.54, -h*0.06);
+    ctx.closePath();
+    ctx.fill(); ctx.beginPath();
+    // Center prong — straight spike back
+    ctx.moveTo(-w*0.46, h*0.03);
+    ctx.lineTo(-w*1.04, h*0.0);
+    ctx.lineTo(-w*0.96, h*0.08);
+    ctx.lineTo(-w*0.54, h*0.06);
+    ctx.closePath();
+    ctx.fill(); ctx.beginPath();
+    // Outer lower prong — sweeps down and back
+    ctx.moveTo(-w*0.46, h*0.08);
+    ctx.quadraticCurveTo(-w*0.68, h*0.26, -w*0.86, h*0.46);
+    ctx.lineTo(-w*0.94, h*0.40);
+    ctx.quadraticCurveTo(-w*0.74, h*0.20, -w*0.52, h*0.10);
     ctx.closePath();
 
   }else if(tail === 'phoenix'){
-    // Phoenix tail: wide flame-fan spread like a peacock/tail feather burst
-    // Five flame streaks fanning out
+    // Phoenix tail: wide flame-fan trailing behind like a comet's plume
+    // Five flame streaks sweeping backward (all pointing away from the fish)
     const flameAngles = [-0.55, -0.27, 0, 0.27, 0.55];
     for(let fi = 0; fi < flameAngles.length; fi++){
       const fa = flameAngles[fi];
-      const fl = 0.7 + Math.abs(fi - 2) * 0.06; // outer feathers slightly shorter
-      ctx.moveTo(-w*0.46, 0);
+      const fl = 0.72 + Math.abs(fi - 2) * 0.07; // center streak longest
+      ctx.moveTo(-w*0.46, Math.sin(fa)*h*0.08);
       ctx.quadraticCurveTo(
-        -w*0.68 + Math.sin(fa)*w*0.08, Math.sin(fa)*h*0.3,
-        -w*fl + Math.sin(fa)*w*0.18, Math.sin(fa)*h*0.48
+        -w*0.70 + Math.cos(fa)*w*0.04, Math.sin(fa)*h*0.28,
+        -w*fl, Math.sin(fa)*h*0.52
       );
     }
     ctx.lineWidth = 4; ctx.strokeStyle = color; ctx.stroke();
@@ -3638,37 +3680,36 @@ function drawBackground(dt){
     // Detect near-center impact for spark burst
     const impactZone = Math.abs(swingL - 1) < 0.08;
 
-    // Draw left rope
+    // Draw left rope + hammer as one rigid unit pivoting from top
     ctx.save();
+    ctx.translate(pivotL, hammerPivotY);
+    ctx.rotate(angleL);
+    // rope
     ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 5;
     ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4;
-    ctx.beginPath(); ctx.moveTo(pivotL, hammerPivotY); ctx.lineTo(hamLX, hamLY); ctx.stroke();
-    // Left hammer head
-    ctx.save();
-    ctx.translate(hamLX, hamLY);
-    ctx.rotate(angleL + Math.PI * 0.5);
-    // Hammer handle stub
-    ctx.fillStyle = '#5a3a0a'; ctx.fillRect(-5, -24, 10, 24);
-    // Hammer head (iron block)
-    const hamHG = ctx.createLinearGradient(-18, 0, 18, 20);
-    hamHG.addColorStop(0, '#aab0bb'); hamHG.addColorStop(0.5, '#d0d8e0'); hamHG.addColorStop(1, '#606870');
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, ropeLen); ctx.stroke();
+    // Hammer handle stub (aligned with rope, continues below rope end)
+    ctx.fillStyle = '#5a3a0a'; ctx.fillRect(-4, ropeLen - 8, 8, 22);
+    // Hammer head (iron block, perpendicular to rope at the tip)
+    const hamHG = ctx.createLinearGradient(-22, ropeLen + 14, 22, ropeLen + 14);
+    hamHG.addColorStop(0, '#606870'); hamHG.addColorStop(0.5, '#d0d8e0'); hamHG.addColorStop(1, '#aab0bb');
     ctx.fillStyle = hamHG;
-    ctx.beginPath(); ctx.roundRect(-18, 0, 36, 22, 4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-22, ropeLen + 12, 44, 24, 5); ctx.fill();
     ctx.strokeStyle = '#44505a'; ctx.lineWidth = 2; ctx.stroke();
     ctx.restore();
 
-    // Draw right rope
-    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(pivotR, hammerPivotY); ctx.lineTo(hamRX, hamRY); ctx.stroke();
-    // Right hammer head
+    // Draw right rope + hammer as one rigid unit
     ctx.save();
-    ctx.translate(hamRX, hamRY);
-    ctx.rotate(angleR - Math.PI * 0.5);
-    ctx.fillStyle = '#5a3a0a'; ctx.fillRect(-5, -24, 10, 24);
-    const hamHG2 = ctx.createLinearGradient(-18, 0, 18, 20);
-    hamHG2.addColorStop(0, '#aab0bb'); hamHG2.addColorStop(0.5, '#d0d8e0'); hamHG2.addColorStop(1, '#606870');
+    ctx.translate(pivotR, hammerPivotY);
+    ctx.rotate(angleR);
+    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 5;
+    ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, ropeLen); ctx.stroke();
+    ctx.fillStyle = '#5a3a0a'; ctx.fillRect(-4, ropeLen - 8, 8, 22);
+    const hamHG2 = ctx.createLinearGradient(-22, ropeLen + 14, 22, ropeLen + 14);
+    hamHG2.addColorStop(0, '#606870'); hamHG2.addColorStop(0.5, '#d0d8e0'); hamHG2.addColorStop(1, '#aab0bb');
     ctx.fillStyle = hamHG2;
-    ctx.beginPath(); ctx.roundRect(-18, 0, 36, 22, 4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-22, ropeLen + 12, 44, 24, 5); ctx.fill();
     ctx.strokeStyle = '#44505a'; ctx.lineWidth = 2; ctx.stroke();
     ctx.restore();
 
@@ -3717,6 +3758,50 @@ function drawBackground(dt){
       ctx.beginPath(); ctx.arc(ax, ay + 12, 28, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
+    // ── Volcanic smoke plumes — random eruptions from fissure vents ──
+    // Fixed vent positions across the width
+    const ventXs = [95, 285, 510, 740, 1010, 1240, 1430];
+    const ventY = 212;
+    for(let vi = 0; vi < ventXs.length; vi++){
+      const vx = ventXs[vi];
+      // Each vent has its own erupt cycle — offset by vent index
+      const eruptPeriod = 4.5 + vi * 0.7;
+      const eruptPhase = (T + vi * 1.9) % eruptPeriod;
+      // Active window: plume rises for ~2.5s then fades
+      const activeWindow = 2.5;
+      if(eruptPhase > activeWindow) continue;
+      const progress = eruptPhase / activeWindow; // 0→1 over the plume life
+      // Fade in fast, hold, fade out near end
+      const alpha = progress < 0.15 ? progress / 0.15 : (progress > 0.75 ? (1 - progress) / 0.25 : 1);
+      // Draw 4 stacked puff balls that rise and expand
+      for(let pi = 0; pi < 5; pi++){
+        const pFrac = pi / 4;
+        // Each puff rises higher as progress increases
+        const pRise = (progress * 160 + pFrac * 55);
+        const py = ventY - pRise;
+        if(py < -40) continue;
+        // Puffs drift slightly side to side (faint wobble)
+        const drift = Math.sin(T * 1.2 + vi * 2.3 + pi * 1.1) * 14 * pFrac;
+        const px2 = vx + drift;
+        // Radius grows as they rise
+        const pr = 10 + pFrac * 28 + progress * 18;
+        // Color: hot at base (orange-grey), cooler/darker at top
+        const r = Math.round(80 + (1 - pFrac) * 120);
+        const g2 = Math.round(50 + (1 - pFrac) * 60);
+        const b2 = Math.round(45 + (1 - pFrac) * 45);
+        const pAlpha = alpha * (0.55 - pFrac * 0.12);
+        ctx.beginPath();
+        ctx.arc(px2, py, pr, 0, Math.PI * 2);
+        const sg2 = ctx.createRadialGradient(px2 - pr*0.2, py - pr*0.2, pr*0.05, px2, py, pr);
+        sg2.addColorStop(0, `rgba(${r+40},${g2+30},${b2+20},${pAlpha})`);
+        sg2.addColorStop(0.5, `rgba(${r},${g2},${b2},${pAlpha * 0.7})`);
+        sg2.addColorStop(1, `rgba(${r-20},${g2-10},${b2-10},0)`);
+        ctx.fillStyle = sg2;
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+
     ctx.restore();
   }
 
