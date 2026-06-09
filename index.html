@@ -25,7 +25,7 @@
       border: 4px solid rgba(255,255,255,.18);
       background: #87ceeb;
     }
-    canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+    canvas { width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
     #help {
       position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
       color: white; font-size: clamp(12px, 1.05vw, 17px); text-shadow: 0 2px 8px rgba(0,0,0,.75);
@@ -38,7 +38,7 @@
 <body>
   <div id="wrap">
     <canvas id="game" width="1510" height="850"></canvas>
-    <div id="help">Move harpoon with mouse • Click/SPACE to drop • Hit treasure chests for potions</div>
+    <div id="help">Move harpoon with mouse • Click/SPACE to fire • Arrow keys to aim/fire</div>
   </div>
 
 <script>
@@ -2381,14 +2381,21 @@ function launch(){
   harpoon.tipY = 170;
   SFX.startReel();
 }
+// ── ARROW KEY STATE ──
+const _keys = { left: false, right: false, down: false };
+
 function updateHarpoon(dt){
   if (!harpoon) return;
 
   const sy=160;
   if(harpoon.status==='still'){
-    // Mouse-controlled horizontal aiming. It still drops straight down when fired.
+    // Arrow key movement — shift harpoon position
     const boatRange = currentBoat().rangeMultiplier;
     const margin = Math.round(120 + (1 - boatRange) * (W/2 - 120));
+    const arrowSpeed = 600 * dt * 0.001; // px per ms → smooth
+    if(_keys.left)  game.mouseX = clamp(game.mouseX - arrowSpeed, margin, W - margin);
+    if(_keys.right) game.mouseX = clamp(game.mouseX + arrowSpeed, margin, W - margin);
+    // Arrow down fires the harpoon (handled in keydown, but also support held-down as fire)
     harpoon.x = clamp(game.mouseX, margin, W - margin);
     harpoon.tipX = harpoon.x; harpoon.tipY = sy;
     return;
@@ -2515,11 +2522,22 @@ function updateEffects(dt){
 // ── TUTORIAL STEPS ──────────────────────────────────────────────────────────
 // Each step: text, icon, action hint, highlight region (for dimming), condition
 // highlight: null = dim everything, or { type:'hud_right' | 'panel_right' | 'panel_shop' | 'panel_maps' | 'panel_quests' | 'panel_catches' | 'panel_rods' | 'panel_bait' }
+
+// Detect touch device (set on first touch, so it updates if someone uses touch on a hybrid device)
+let _isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+window.addEventListener('touchstart', () => { _isMobile = true; }, { once: false, passive: true });
+
 const tutorialSteps = [
-  // 0: Move mouse
-  { text:'Welcome, Captain! Move your mouse left and right to aim your harpoon.', icon:'🎯', action:'Move your mouse left/right', highlight:null },
+  // 0: Move / aim
+  { get text(){ return _isMobile ? 'Welcome! Touch and drag left or right to aim your harpoon.' : 'Welcome! Move your mouse/arrow keys left and right to aim your harpoon.'; },
+    get icon(){ return _isMobile ? '👆' : '🎯'; },
+    get action(){ return _isMobile ? 'Drag left/right to aim' : 'Move your mouse left/right'; },
+    highlight:null },
   // 1: Fire harpoon
-  { text:'Ready to fire! Click or press SPACE to drop the harpoon into the water.', icon:'🖱️', action:'Click or press SPACE', highlight:null },
+  { get text(){ return _isMobile ? 'Lift your finger to drop the harpoon into the water.' : 'Click or press SPACE/Down to drop the harpoon into the water.'; },
+    get icon(){ return _isMobile ? '☝️' : '🖱️'; },
+    get action(){ return _isMobile ? 'Lift finger to fire' : 'Click or press SPACE'; },
+    highlight:null },
   // 2: Catch a fish
   { text:'Great! Aim at a fish and catch one to earn your first coins!', icon:'🐟', action:'Catch a fish', highlight:null },
   // 3: Open menu → shop (highlight right panel/menu button)
@@ -3626,15 +3644,67 @@ function drawBackground(dt){
     const ang2=ctx.createRadialGradient(ax,ay+24,0,ax,ay+24,55);
     ang2.addColorStop(0,'rgba(255,160,20,.35)'); ang2.addColorStop(1,'rgba(255,80,0,0)');
     ctx.fillStyle=ang2; ctx.beginPath(); ctx.arc(ax,ay+24,55,0,Math.PI*2); ctx.fill();
-    // Dual elemental orbs flanking the anvil
-    const orbColors=[['#00aaff','#0044cc'],['#ff4400','#cc1100']];
-    const orbX=[ax-200,ax+200];
+    // Dual elemental orbs — moved further out, with crackling energy
+    const orbColors=[['#00ccff','#0044cc','rgba(0,180,255,'],['#ff5500','#cc1100','rgba(255,80,0,']];
+    const orbX=[ax-370, ax+370];
     for(let o=0;o<2;o++){
       const ot=(T*0.9+o*Math.PI)%(Math.PI*2);
-      const oy2=ay+8+Math.sin(ot)*12;
-      const og2=ctx.createRadialGradient(orbX[o],oy2,0,orbX[o],oy2,22);
-      og2.addColorStop(0,orbColors[o][0]); og2.addColorStop(0.6,orbColors[o][1]); og2.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle=og2; ctx.beginPath(); ctx.arc(orbX[o],oy2,22,0,Math.PI*2); ctx.fill();
+      const oy2=ay-50+Math.sin(ot)*14;
+      const ocInner=orbColors[o][0], ocOuter=orbColors[o][1], ocGlow=orbColors[o][2];
+
+      // Outer menace glow — wide halo
+      const haloG=ctx.createRadialGradient(orbX[o],oy2,0,orbX[o],oy2,68);
+      haloG.addColorStop(0,`${ocGlow}0.18)`);
+      haloG.addColorStop(0.5,`${ocGlow}0.08)`);
+      haloG.addColorStop(1,`${ocGlow}0)`);
+      ctx.fillStyle=haloG; ctx.beginPath(); ctx.arc(orbX[o],oy2,68,0,Math.PI*2); ctx.fill();
+
+      // Pulsing mid-ring
+      const pulseR=28+Math.sin(T*4.2+o*2.1)*5;
+      const midG=ctx.createRadialGradient(orbX[o],oy2,4,orbX[o],oy2,pulseR);
+      midG.addColorStop(0,ocInner); midG.addColorStop(0.55,ocOuter); midG.addColorStop(1,`${ocGlow}0)`);
+      ctx.fillStyle=midG; ctx.beginPath(); ctx.arc(orbX[o],oy2,pulseR,0,Math.PI*2); ctx.fill();
+
+      // Hard bright core
+      const coreG=ctx.createRadialGradient(orbX[o]-4,oy2-4,1,orbX[o],oy2,10);
+      coreG.addColorStop(0,'rgba(255,255,255,0.95)'); coreG.addColorStop(0.4,ocInner); coreG.addColorStop(1,`${ocGlow}0)`);
+      ctx.fillStyle=coreG; ctx.beginPath(); ctx.arc(orbX[o],oy2,10,0,Math.PI*2); ctx.fill();
+
+      // Crackling energy bolts radiating outward
+      ctx.save();
+      ctx.shadowColor=ocInner; ctx.shadowBlur=10;
+      const boltCount=7;
+      for(let b=0;b<boltCount;b++){
+        // Each bolt has its own flicker phase
+        const bPhase=Math.sin(T*9.3+b*2.4+o*3.7);
+        if(bPhase<0.1) continue; // only show ~half the bolts at any time
+        ctx.globalAlpha=bPhase*0.85;
+        ctx.strokeStyle=o===0?'rgba(120,220,255,0.9)':'rgba(255,140,60,0.9)';
+        ctx.lineWidth=1.5;
+        const bAngle=(b/boltCount)*Math.PI*2 + T*1.1 + o*0.8;
+        const bLen=18+Math.sin(T*7+b*1.9)*10;
+        // jagged bolt: two segments with a kink
+        const bMidX=orbX[o]+Math.cos(bAngle)*(bLen*0.45)+Math.sin(T*14+b)*5;
+        const bMidY=oy2+Math.sin(bAngle)*(bLen*0.45)+Math.cos(T*14+b)*5;
+        const bEndX=orbX[o]+Math.cos(bAngle)*bLen;
+        const bEndY=oy2+Math.sin(bAngle)*bLen;
+        ctx.beginPath();
+        ctx.moveTo(orbX[o],oy2);
+        ctx.lineTo(bMidX,bMidY);
+        ctx.lineTo(bEndX,bEndY);
+        ctx.stroke();
+      }
+      ctx.globalAlpha=1; ctx.restore();
+
+      // Orbiting energy sparks (2 tiny dots circling each orb)
+      for(let sp=0;sp<2;sp++){
+        const spA=T*2.8*(o===0?1:-1)+sp*Math.PI+o*1.2;
+        const spR=pulseR+10;
+        const spX=orbX[o]+Math.cos(spA)*spR;
+        const spY=oy2+Math.sin(spA)*spR*0.6;
+        ctx.fillStyle=o===0?'rgba(180,240,255,0.9)':'rgba(255,180,80,0.9)';
+        ctx.beginPath(); ctx.arc(spX,spY,2.5,0,Math.PI*2); ctx.fill();
+      }
     }
     // Lightning arc between orbs (animated)
     const arcPhase=Math.sin(T*3.5);
@@ -3644,8 +3714,8 @@ function drawBackground(dt){
       ctx.strokeStyle='rgba(220,200,255,1)'; ctx.lineWidth=2.5;
       ctx.shadowColor='rgba(180,180,255,.9)'; ctx.shadowBlur=12;
       ctx.beginPath();
-      ctx.moveTo(orbX[0],ay+8);
-      ctx.bezierCurveTo(orbX[0]+80,ay-30,orbX[1]-80,ay-30,orbX[1],ay+8);
+      ctx.moveTo(orbX[0],ay-50);
+      ctx.bezierCurveTo(orbX[0]+120,ay-90,orbX[1]-120,ay-90,orbX[1],ay-50);
       ctx.stroke(); ctx.restore();
     }
 
@@ -5801,17 +5871,26 @@ function draw(ts){
 function loop(t){ const dt=Math.min(33,t-game.last||16); game.last=t; update(dt); draw(t);
   // Show/hide the help bar based on tutorial state
   const helpEl = document.getElementById('help');
-  if(helpEl) helpEl.style.opacity = game.tutorial.active ? '0' : '1';
+  if(helpEl){
+    helpEl.style.opacity = game.tutorial.active ? '0' : '1';
+    helpEl.textContent = _isMobile
+      ? 'Drag to aim • Release to fire • Tap MENU for upgrades'
+      : 'Move mouse to aim • Click/SPACE to fire • ← → arrows aim • ↓ fires';
+  }
   requestAnimationFrame(loop); }
 
 function mousePos(e){ const r=canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}; }
+function touchPos(t){ const r=canvas.getBoundingClientRect(); return {x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height}; }
 
 // ── SLIDER DRAG STATE ──
 let _sliderDragging = false;
 
+// ── TOUCH DRAG STATE for harpoon aiming ──
+let _touchAiming = false;    // finger is down on the game canvas (not panel)
+let _touchId     = null;     // which touch identifier we're tracking
+
 canvas.addEventListener('mousedown', e => {
   const p = mousePos(e);
-  // check if clicking the sound slider
   if(game.panel === 'sound' && game._soundSlider){
     const sl = game._soundSlider;
     if(p.x >= sl.x && p.x <= sl.x + sl.w && p.y >= sl.y && p.y <= sl.y + sl.h){
@@ -5834,7 +5913,6 @@ canvas.addEventListener('mousemove', e => {
     const margin = Math.round(210 + (1 - boatRange) * (W/2 - 210));
     harpoon.x = clamp(game.mouseX, margin, W - margin);
   }
-  // drag slider
   if(_sliderDragging && game.panel === 'sound' && game._soundSlider){
     const sl = game._soundSlider;
     const ratio = clamp((p.x - sl.sliderX) / sl.sliderW, 0, 1);
@@ -5849,7 +5927,6 @@ window.addEventListener('mouseup', () => { _sliderDragging = false; });
 canvas.addEventListener('click', e => {
   if(_sliderDragging) return;
   const p = mousePos(e);
-  // skip slider area to avoid double-fire
   if(game.panel === 'sound' && game._soundSlider){
     const sl = game._soundSlider;
     if(p.x >= sl.x && p.x <= sl.x + sl.w && p.y >= sl.y && p.y <= sl.y + sl.h) return;
@@ -5863,18 +5940,148 @@ canvas.addEventListener('click', e => {
   }
   launch();
 });
+
+// ── TOUCH CONTROLS ──
+// touchstart: begin aiming (or hit a button if panel open)
+canvas.addEventListener('touchstart', e => {
+  _isMobile = true;
+  e.preventDefault(); // prevent ghost click / scroll
+  const t0 = e.changedTouches[0];
+  const p  = touchPos(t0);
+
+  // If a panel is open, let touch act as a click for buttons/slider
+  if(game.panel){
+    if(game.panel === 'sound' && game._soundSlider){
+      const sl = game._soundSlider;
+      if(p.x >= sl.x && p.x <= sl.x + sl.w && p.y >= sl.y && p.y <= sl.y + sl.h){
+        _sliderDragging = true;
+        const ratio = clamp((p.x - sl.sliderX) / sl.sliderW, 0, 1);
+        SFX.settings.masterVolume = ratio;
+        SFX.syncMusicVolume();
+        save();
+        return;
+      }
+    }
+    return; // will be handled by touchend click simulation
+  }
+
+  // No panel — begin harpoon aiming drag
+  _touchAiming = true;
+  _touchId = t0.identifier;
+  game.mouseX = p.x;
+  game.mouseY = p.y;
+  if(harpoon.status === 'still'){
+    const boatRange = currentBoat().rangeMultiplier;
+    const margin = Math.round(120 + (1 - boatRange) * (W/2 - 120));
+    harpoon.x = clamp(p.x, margin, W - margin);
+    game.mouseX = harpoon.x;
+  }
+}, { passive: false });
+
+// touchmove: drag to aim
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  // Slider drag
+  if(_sliderDragging && game.panel === 'sound' && game._soundSlider){
+    const t0 = e.changedTouches[0];
+    const p  = touchPos(t0);
+    const sl = game._soundSlider;
+    const ratio = clamp((p.x - sl.sliderX) / sl.sliderW, 0, 1);
+    SFX.settings.masterVolume = ratio;
+    SFX.syncMusicVolume();
+    save();
+    return;
+  }
+  if(!_touchAiming) return;
+  for(let i = 0; i < e.changedTouches.length; i++){
+    const t = e.changedTouches[i];
+    if(t.identifier !== _touchId) continue;
+    const p = touchPos(t);
+    game.mouseX = p.x;
+    game.mouseY = p.y;
+    if(harpoon.status === 'still'){
+      const boatRange = currentBoat().rangeMultiplier;
+      const margin = Math.round(120 + (1 - boatRange) * (W/2 - 120));
+      harpoon.x = clamp(p.x, margin, W - margin);
+      game.mouseX = harpoon.x;
+    }
+    break;
+  }
+}, { passive: false });
+
+// touchend: fire on release (if aiming), or simulate click for buttons
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  _sliderDragging = false;
+
+  const t0 = e.changedTouches[0];
+  const p  = touchPos(t0);
+
+  // Panel open — simulate button click
+  if(game.panel){
+    for(let i = buttons.length - 1; i >= 0; i--){
+      if(buttons[i].hit(p.x, p.y)){
+        SFX.buttonClick();
+        buttons[i].fn({ _sliderX: p.x, _sliderY: p.y });
+        _touchAiming = false;
+        _touchId = null;
+        return;
+      }
+    }
+    _touchAiming = false;
+    _touchId = null;
+    return;
+  }
+
+  if(_touchAiming && t0.identifier === _touchId){
+    _touchAiming = false;
+    _touchId = null;
+    launch(); // release finger = fire
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchcancel', () => {
+  _touchAiming = false;
+  _touchId = null;
+  _sliderDragging = false;
+}, { passive: true });
+
 canvas.addEventListener('wheel', e=>{
   if(game.panel !== 'maps' && game.panel !== 'collection') return;
-
   if(game.panel === 'maps'){
     game.mapScroll = (game.mapScroll || 0) + e.deltaY * 0.6;
   }
-
   if(game.panel === 'collection'){
     game.collectionScroll = (game.collectionScroll || 0) + e.deltaY * 0.6;
   }
 });
-window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); launch(); } if(e.code==='Escape'){ if(game.panel){ SFX.panelClose(); if(game.panel!=='menu'&&game.panelFrom==='menu'){ game.panel='menu'; game.panelFrom=null; game.panelAnim={t:0,open:false}; } else { game.panel=null; game.panelFrom=null; game.panelAnim={t:0,open:false}; } } } });
+
+// ── KEYBOARD ──
+window.addEventListener('keydown', e => {
+  // Arrow keys
+  if(e.code === 'ArrowLeft')  { e.preventDefault(); _keys.left  = true; return; }
+  if(e.code === 'ArrowRight') { e.preventDefault(); _keys.right = true; return; }
+  if(e.code === 'ArrowDown')  { e.preventDefault(); if(harpoon.status === 'still') launch(); return; }
+  if(e.code === 'ArrowUp')    { e.preventDefault(); return; } // absorb, no action
+  // Space fires
+  if(e.code === 'Space'){ e.preventDefault(); launch(); return; }
+  // Escape closes panels
+  if(e.code === 'Escape'){
+    if(game.panel){
+      SFX.panelClose();
+      if(game.panel !== 'menu' && game.panelFrom === 'menu'){
+        game.panel = 'menu'; game.panelFrom = null; game.panelAnim = {t:0,open:false};
+      } else {
+        game.panel = null; game.panelFrom = null; game.panelAnim = {t:0,open:false};
+      }
+    }
+  }
+});
+window.addEventListener('keyup', e => {
+  if(e.code === 'ArrowLeft')  { e.preventDefault(); _keys.left  = false; }
+  if(e.code === 'ArrowRight') { e.preventDefault(); _keys.right = false; }
+  if(e.code === 'ArrowDown')  { e.preventDefault(); _keys.down  = false; }
+});
 
 load(); // Enable tutorial ONLY for brand new players
 if(game.caught === 0 && !game.tutorial.everStarted){
