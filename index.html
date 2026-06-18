@@ -42,6 +42,20 @@
   </div>
 
 <script>
+function checkSitelock() {
+  const hostname = window.location.hostname;
+  // Allows you to test it on your local computer or GitHub pages
+  if (hostname.includes("localhost") || hostname.includes("github.io") || hostname.includes("")) {
+    return; 
+  }
+  // Checks if it's running on an official CrazyGames portal
+  if (hostname.includes("crazygames")) {
+    return; 
+  }
+  // If someone stole your code and put it on another site, block it
+  document.body.innerHTML = "<h1 style='color:white; text-align:center; margin-top:20%;'>This game is authorized to play only on CrazyGames!</h1>";
+}
+checkSitelock();
 // ── roundRect polyfill for older browsers ──
 if(!CanvasRenderingContext2D.prototype.roundRect){
   CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r){
