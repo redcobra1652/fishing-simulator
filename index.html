@@ -6,38 +6,31 @@
   <title>Fish the Fish</title>
   <style>
     * { box-sizing: border-box; user-select: none; }
-    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
-    body { 
-      min-height: 100vh;
-      display: flex; 
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at top, #123456 0%, #020814 70%);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
     #wrap {
-      width: min(96vw, 1510px);
-      aspect-ratio: 1536 / 864;
-      position: relative;
-      border-radius: 24px;
+      position: absolute;
+      /* Centered 16:9 box — CSS handles letterbox/pillarbox automatically */
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(100vw, 100vh * 16 / 9);
+      height: min(100vh, 100vw * 9 / 16);
       overflow: hidden;
-      box-shadow: 0 30px 90px rgba(0,0,0,.55);
-      border: 4px solid rgba(255,255,255,.18);
-      background: #87ceeb;
+      container-type: inline-size;
     }
-    canvas { width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
+    canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
     #help {
       position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
-      color: white; font-size: clamp(12px, 1.05vw, 17px); text-shadow: 0 2px 8px rgba(0,0,0,.75);
-      background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.22);
-      padding: 9px 16px; border-radius: 999px; pointer-events: none; backdrop-filter: blur(4px); white-space: nowrap;
+      color: white; font-size: clamp(10px, 1.4cqw, 17px); text-shadow: 0 2px 8px rgba(0,0,0,.75);
+      background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.22);
+      padding: 7px 14px; border-radius: 999px; pointer-events: none; backdrop-filter: blur(4px); white-space: nowrap;
       transition: opacity 0.4s;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
   </style>
 </head>
 <body>
   <div id="wrap">
-    <canvas id="game" width="1510" height="850"></canvas>
+    <canvas id="game"></canvas>
     <div id="help">Move harpoon with mouse • Click/SPACE to fire • Arrow keys to aim/fire</div>
   </div>
 
@@ -916,6 +909,22 @@ const SFX = (() => {
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = 1510, H = 850;
+
+// Scale the canvas pixel buffer to the 16:9 wrap size × DPR
+// so text and graphics stay crisp at all iframe sizes.
+function resizeCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  const wrap = canvas.parentElement;
+  const cw = Math.round(wrap.clientWidth  * dpr);
+  const ch = Math.round(wrap.clientHeight * dpr);
+  if(canvas.width !== cw || canvas.height !== ch){
+    canvas.width  = cw;
+    canvas.height = ch;
+  }
+  ctx.setTransform(cw / W, 0, 0, ch / H, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas, 0);
 
 const maps = [
   { id:'bay', name:'Starter Bay', cost:0, mult:1, depth:'#1e90ff', sky1:'#86e1ff', sky2:'#2196f3', fishBonus:0, rare:0, desc:'Balanced beginner waters.' },
@@ -2870,7 +2879,7 @@ function updateTutorial(){
   // STEP 18: earn coins, show catches hint
   else if(s === 18){
     if(!t._showedCatchesHint) t._showedCatchesHint = false;
-    if(game.coins >= 700 && !t._showedCatchesHint){
+    if(game.coins >= 1200 && !t._showedCatchesHint){
       t._showedCatchesHint = true;
       t.step++;
     }
@@ -5858,6 +5867,10 @@ function drawSoundPanel(){
 function drawEffects(){ for(const p of game.particles){ ctx.globalAlpha=clamp(p.life/40,0,1); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; } for(const m of game.messages){ ctx.globalAlpha=clamp(m.life/45,0,1); text(m.text,m.x,m.y,24,'center',m.color); ctx.globalAlpha=1; } }
 function update(dt){ for(const f of game.fish) f.move(dt); for(const c of game.chests) c.move(dt); updateHarpoon(dt); updateEffects(dt); updateTransition(dt); updateTutorial(); updateBaitTimers(dt); }
 function draw(ts){
+  // Re-apply the logical→physical transform each frame
+  // (ctx.save/restore would otherwise drop it)
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform((canvas.width / W), 0, 0, (canvas.height / H), 0, 0);
 
   const ox = rand(-game.shake, game.shake);
   const oy = rand(-game.shake, game.shake);
