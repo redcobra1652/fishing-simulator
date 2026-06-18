@@ -1196,12 +1196,12 @@ const game = {
 function save(){
   try {
     game.soundSettings = {...SFX.settings};
-    localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,boat:game.boat,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,unlockedBoats:game.unlockedBoats,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked,soundSettings:game.soundSettings})); 
+    localStorage.setItem('fishingEmpireSave', JSON.stringify({coins:game.coins,gems:game.gems,score:game.score,caught:game.caught,bestCatch:game.bestCatch,map:game.map,rod:game.rod,boat:game.boat,unlockedMaps:game.unlockedMaps,unlockedRods:game.unlockedRods,unlockedBoats:game.unlockedBoats,upgrades:game.upgrades,quests:game.quests,collection:game.collection,elementalUnlocked:game.elementalUnlocked,soundSettings:game.soundSettings,tutorial:game.tutorial})); 
   } catch (e) {
     console.warn("Save failed: Storage might be full or private.");
   }
 }
-function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; game.mapBaitActive=false; game.mutationBaitActive=false; game._baitTimers={}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(!game.boat) game.boat='dinghy'; if(!game.unlockedBoats) game.unlockedBoats={dinghy:true}; if(!game.gearTab) game.gearTab='harpoons'; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); if(!maps.find(m=>m.id===game.map)) game.map='forge'; }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem('fishingEmpireSave')||'{}'); Object.assign(game,s); game.messages=[]; game.particles=[]; game.fish=[]; game.chests=[]; game.potions={luck:0,speed:0,coin:0}; game.mapBaitActive=false; game.mutationBaitActive=false; game._baitTimers={}; if(game.elementalUnlocked===undefined) game.elementalUnlocked=false; if(!game.boat) game.boat='dinghy'; if(!game.unlockedBoats) game.unlockedBoats={dinghy:true}; if(!game.gearTab) game.gearTab='harpoons'; if(game.soundSettings) Object.assign(SFX.settings, game.soundSettings); if(!maps.find(m=>m.id===game.map)) game.map='forge'; if(s.tutorial) game.tutorial = Object.assign({active:false,step:0}, s.tutorial); }catch(e){} }
 function reset(){ localStorage.removeItem('fishingEmpireSave'); location.reload(); }
 function currentMap(){ return maps.find(m=>m.id===game.map); }
 function currentRod(){ return rods.find(r=>r.id===game.rod); }
@@ -2747,7 +2747,7 @@ function drawTutorial(){
   // If final step, draw "Start Fishing!" button
   if(isFinal){
     const bw=260,bh=48,bx=barX+barW-bw-18,by=barY+barH/2-bh/2;
-    addButton(bx,by,bw,bh,'🎉 Start Fishing!',()=>{ game.tutorial.active=false; },'#2ed573').draw('#2ed573');
+    addButton(bx,by,bw,bh,'🎉 Start Fishing!',()=>{ game.tutorial.active=false; save(); },'#2ed573').draw('#2ed573');
   }
 
   // Progress bar at bottom of bar
@@ -2767,6 +2767,7 @@ function updateTutorial(){
   if(!game.tutorial.active) return;
 
   const t = game.tutorial;
+  const _stepBefore = t.step;
   const s = t.step;
 
   // STEP 0: move mouse
@@ -2884,6 +2885,7 @@ function updateTutorial(){
     if(game.map === 'ice') t.step++;
   }
   // STEP 24: final — stays until player clicks button
+  if(t.step !== _stepBefore) save();
 }
 
 function spawnFish(){ game.fish=[]; const count=15+currentMap().fishBonus; for(let i=0;i<count;i++){ const f=new Fish(); f.x=rand(0,W); game.fish.push(f); } spawnChests(); }
@@ -6106,6 +6108,7 @@ if(game.caught === 0 && !game.tutorial.everStarted){
   game.tutorial.step = 0;
   game.tutorial.everStarted = true;
   game.gems = 1; // Give 1 starting gem
+  save();
 }
 
 // Start background music on first user interaction (browser autoplay policy)
